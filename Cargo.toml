@@ -1,0 +1,8 @@
+[workspace]
+
+members = [
+    "transcribe",
+    "audio_to_spectrum",
+]
+
+resolver = "2"
