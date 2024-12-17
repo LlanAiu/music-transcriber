@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 symphonia = { version = "0.5.4", features = ["mp3"] }
 rustfft = { version = "6.2.0" }
+plotters = "0.3"

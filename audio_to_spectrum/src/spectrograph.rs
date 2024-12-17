@@ -1,4 +1,5 @@
 use rustfft::{num_complex::Complex, FftPlanner};
+use plotters::prelude::*;
 
 use crate::pcm::PCMBuffer;
 
@@ -74,6 +75,44 @@ impl Spectrograph {
 
     pub fn graph_ref(&self) -> &Vec<Vec<f32>> {
         &self.graph
+    }
+
+    pub fn generate_heatmap(&self, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let root = BitMapBackend::new(filename, (1024, 768)).into_drawing_area();
+        root.fill(&WHITE)?;
+
+        let max_value = self.graph.iter().flatten().cloned().fold(0./0., f32::max);
+        let min_value = self.graph.iter().flatten().cloned().fold(0./0., f32::min);
+
+        let mut chart = ChartBuilder::on(&root)
+            .caption("Spectrograph Heatmap", ("sans-serif", 50).into_font())
+            .margin(10)
+            .x_label_area_size(30)
+            .y_label_area_size(30)
+            .build_cartesian_2d(
+                (0..self.graph[0].len()).log_scale(),
+                0..self.graph.len()
+            )?;
+
+        chart.configure_mesh().draw()?;
+
+        for (y, row) in self.graph.iter().enumerate() {
+            for (x, &value) in row.iter().enumerate() {
+                let intensity = (value - min_value) / (max_value - min_value);
+                let color = RGBColor(
+                    (255.0 * intensity) as u8,
+                    0,
+                    0,
+                );
+                chart.draw_series(std::iter::once(Rectangle::new(
+                    [(x, y), (x + 1, y + 1)],
+                    color.filled(),
+                )))?;
+            }
+        }
+
+        root.present()?;
+        Ok(())
     }
 }
 

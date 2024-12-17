@@ -21,19 +21,32 @@ mod tests {
 
     #[test]
     fn pcm_test() {
-        let path: String = String::from("../Chopin_Op9_No2.mp3");
+        let path: String = String::from("../tests/Chopin_Op9_No2.mp3");
         let spectrograph: Spectrograph = audio_to_spectrograph(&path);
         println!("{}", spectrograph.graph_ref().len());
     }
 
     #[test]
     fn basic_spectrograph() {
-        let path: String = String::from("../700hz_test.mp3");
+        let path: String = String::from("../tests/700hz_test.mp3");
+        let image: String = String::from("../tests/700hz_test_image.png");
         let spectrograph: Spectrograph = audio_to_spectrograph(&path);
+        let _ = spectrograph.generate_heatmap(&image).expect("Failed to generate heatmap");
+    }
 
-        let frequencies = spectrograph.find_max_frequency();
-        for (i, (index, max, frequency)) in frequencies.iter().enumerate() {
-            println!("Timestep {i}: Max value {max} at index {index}, Frequency: {frequency} Hz");  
-        }       
+    #[test]
+    fn simple_melody() {
+        let path: String = String::from("../tests/Happy_bday.mp3");
+        let image: String = String::from("../tests/Happy_bday_spectrograph.png");
+        let spectrograph: Spectrograph = audio_to_spectrograph(&path);
+        let _ = spectrograph.generate_heatmap(&image).expect("Failed to generate heatmap");
+    }
+
+    #[test]
+    fn complex_melody() {
+        let path: String = String::from("../tests/K331_15s.mp3");
+        let image: String = String::from("../tests/K331_15s_image.png");
+        let spectrograph: Spectrograph = audio_to_spectrograph(&path);
+        let _ = spectrograph.generate_heatmap(&image).expect("Failed to generate heatmap");
     }
 }
