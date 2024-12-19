@@ -2,7 +2,9 @@
 
 members = [
     "transcribe",
-    "audio_to_spectrum",
+    "audio_to_spectrum", 
+    "midi_encoder",
+    "spectrum_reader",
 ]
 
 resolver = "2"

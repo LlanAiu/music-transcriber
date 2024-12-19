@@ -1,0 +1,3 @@
+MIDI Format: https://ccarh.org/courses/253/handout/smf/
+http://www.music.mcgill.ca/~ich/classes/mumt306/StandardMIDIfileformat.html
+
