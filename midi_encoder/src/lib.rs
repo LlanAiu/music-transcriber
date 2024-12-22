@@ -6,7 +6,7 @@ use midly::{Smf, Timing, TrackEventKind};
 
 const ENCODING_LENGTH: usize = 88 * 2;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub struct NoteEvent {
     timestamp: u32, // in ms
     key: u8,
@@ -14,6 +14,7 @@ pub struct NoteEvent {
 }
 
 pub struct MIDIEncoding {
+    timestep: u32, // ms
     encoding: Vec<Vec<f32>>,
 }
 
@@ -101,7 +102,23 @@ pub fn encode_midi(events: Vec<NoteEvent>, timestep_ms: u32) -> MIDIEncoding {
     }
     encoding.push(previous_note.expect("Cannot get note encoding"));
 
-    MIDIEncoding { encoding: encoding }
+    MIDIEncoding {timestep: timestep_ms, encoding: encoding }
+}
+
+pub fn decode_midi_encoding(midi: MIDIEncoding) -> Vec<NoteEvent> {
+    let mut events: Vec<NoteEvent> = Vec::new();
+
+    for (i, encoding ) in midi.encoding.iter().enumerate() {
+        let decoded: Option<Vec<NoteEvent>> = decode_note_encoding(encoding, (i as u32) * midi.timestep);
+        if decoded.is_some() {
+            let event: Vec<NoteEvent> = decoded.expect("Failed to get decoded note event");
+            for e in event {
+                events.push(e);
+            }
+        }
+    }
+
+    events
 }
 
 /* 
@@ -118,22 +135,32 @@ fn get_note_encoding(note: NoteEvent) -> Option<Vec<f32>> {
     Some(note_encoding)
 }
 
-fn decode_note_encoding(encoding: Vec<f32>, timestamp_ms: u32) -> Option<NoteEvent>{
+fn decode_note_encoding(encoding: &Vec<f32>, timestamp_ms: u32) -> Option<Vec<NoteEvent>>{
     if encoding.len() != ENCODING_LENGTH {
         panic!("Not a valid note encoding");
     }
 
-    for i in (1..encoding.len()).skip(1).step_by(2) {
+    let mut events: Vec<NoteEvent> = Vec::new();
+
+    for i in 1..encoding.len() {
+        if i % 2 != 1 {
+            continue;
+        }
         if encoding[i] == 1.0 {
             let key: u8 = ((i - 1) / 2 + 21) as u8;
             let event: NoteEvent = NoteEvent::new(timestamp_ms, key, encoding[i - 1] == 1.0);
-            return Option::Some(event);
+            events.push(event);
         }
     }
 
-    Option::None
+    if events.is_empty() {
+        return None;
+    }
+    Some(events)
+
 }
 
+//Need to handle same note in both vectors in some way (either merge or panic?), otherwise will trip up model
 fn layer(n1: &Vec<f32>, n2: &Vec<f32>) -> Option<Vec<f32>> {
     if n1.len() != n2.len() {
         panic!("Cannot add vectors of differing length");
@@ -182,5 +209,43 @@ mod tests {
         let n1: Vec<f32> = vec![1.0; 5];
         let n2: Vec<f32> = vec![2.0; 5];
         assert_eq!(layer(&n1, &n2), Some(vec![3.0; 5]));
+    }
+
+    #[test]
+    fn test_decode_encoding(){
+        let events: Vec<NoteEvent> = parse_midi("./tests/Timing_Test.mid");
+        let encoding: MIDIEncoding = encode_midi(events, 500);
+
+        let note: Option<Vec<NoteEvent>> = decode_note_encoding(&encoding.encoding[2], 1000);
+
+        println!("{:?}", note);
+    }
+
+    #[test]
+    fn simple_encode_and_decode(){
+        let events: Vec<NoteEvent> = parse_midi("./tests/Timing_Test.mid");
+        let encoding: MIDIEncoding = encode_midi(events, 500);
+
+        let decoded: Vec<NoteEvent> = decode_midi_encoding(encoding);
+        let copy_events: Vec<NoteEvent> = parse_midi("./tests/Timing_Test.mid");
+
+        assert_eq!(decoded, copy_events);
+    }
+
+    #[test]
+    //doesn't work bc of note on & off in the same timestamp (which idk, ig that's fair)
+    fn complex_encode_and_decode(){
+        let events: Vec<NoteEvent> = parse_midi("./tests/Double_Note_Test.mid");
+        let encoding: MIDIEncoding = encode_midi(events, 250);
+
+        let mut decoded: Vec<NoteEvent> = decode_midi_encoding(encoding);
+        decoded.sort_by(|a, b| a.cmp(b));
+        let mut copy_events: Vec<NoteEvent> = parse_midi("./tests/Double_Note_Test.mid");
+        copy_events.sort_by(|a, b| a.cmp(b));
+
+        println!("Decoded: {:#?}", decoded);
+        println!("Original: {:#?}", copy_events);
+
+        assert_eq!(decoded, copy_events);
     }
 }
