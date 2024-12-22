@@ -89,16 +89,15 @@ pub fn encode_midi(events: Vec<NoteEvent>, timestep_ms: u32) -> MIDIEncoding {
             if previous_note.is_some() {
                 let note: Vec<f32> = previous_note.expect("Cannot get note encoding");
                 encoding.push(note);
+                current_time += timestep_ms;
             }
             let next_time = event.timestamp;
             while current_time + timestep_ms <= next_time {
                 current_time += timestep_ms;
                 encoding.push(vec![0.0; ENCODING_LENGTH]);
-                println!("Current Time: {}", current_time);
             }
             previous_note = get_note_encoding(event);
-            current_time += timestep_ms;
-        }
+        } 
     }
     encoding.push(previous_note.expect("Cannot get note encoding"));
 
@@ -159,12 +158,29 @@ mod tests {
     }
 
     #[test]
-    fn test_encode_midi() {
+    fn encode_simple_midi() {
         let events: Vec<NoteEvent> = parse_midi("./tests/Timing_Test.mid");
         let encoding: MIDIEncoding = encode_midi(events, 500);
         println!("{}", encoding.encoding.len());
         for (i, vector) in encoding.encoding.iter().enumerate() {
             println!("Timestep {i}: {:?}", vector);
         }
+    }
+
+    #[test]
+    fn encode_complex_midi() {
+        let events: Vec<NoteEvent> = parse_midi("./tests/Double_Note_Test.mid");
+        let encoding: MIDIEncoding = encode_midi(events, 250);
+        println!("{}", encoding.encoding.len());
+        for (i, vector) in encoding.encoding.iter().enumerate() {
+            println!("Timestep {i}: {:?}", vector);
+        }
+    }
+
+    #[test]
+    fn layer_test(){
+        let n1: Vec<f32> = vec![1.0; 5];
+        let n2: Vec<f32> = vec![2.0; 5];
+        assert_eq!(layer(&n1, &n2), Some(vec![3.0; 5]));
     }
 }
