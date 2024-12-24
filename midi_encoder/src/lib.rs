@@ -8,7 +8,7 @@ mod constants;
 mod midi;
 mod encoder;
 use encoder::{decode, encode};
-use midi::parse_midi;
+use midi::{parse_midi, write_midi};
 use types::EncodingData;
 
 use crate::types::{NoteEvent, MIDIEncoding};
@@ -20,9 +20,9 @@ pub fn generate_midi_encoding(path: &str, timestep_ms: u32) -> MIDIEncoding {
     encode(data)
 }
 
-//TODO: generate midi file from encoding (change test too)
-pub fn decode_midi_encoding(midi: MIDIEncoding) -> Vec<NoteEvent> {
-    decode(midi)
+pub fn decode_to_midi(midi: MIDIEncoding, file_path: &str) {
+    let events: Vec<NoteEvent> = decode(midi);
+    write_midi(&events, file_path);
 }
 
 #[cfg(test)]
@@ -47,9 +47,7 @@ mod tests {
     #[test]
     fn decode_test() {
         let midi: MIDIEncoding = generate_midi_encoding("./tests/Double_Note_Test.mid", 250);
-        let events: Vec<NoteEvent> = decode_midi_encoding(midi);
-
-        println!("{:#?}", events);
+        decode_to_midi(midi, "./tests/output/MGROL.mid");
     }
 
 }

@@ -7,6 +7,7 @@ use crate::types::{MIDIEncoding, NoteEvent, EncodingData};
 use crate::constants::ENCODING_LENGTH;
 
 
+//rethink due to too close note diffs?
 pub fn encode(data: EncodingData) -> MIDIEncoding {
     let events: &Vec<NoteEvent> = data.get_events();
     let timestep_ms: u32 = data.get_timestep();
@@ -97,6 +98,7 @@ fn decode_note_encoding(encoding: &Vec<f32>, timestamp_ms: u32) -> Option<Vec<No
     Some(events)
 }
 
+// if same note on + off, push off to next timestep? (somehow the data has 40 ms note diffs...)
 fn layer_notes(n1: &Vec<f32>, n2: &Vec<f32>) -> Option<Vec<f32>> {
     if n1.len() != ENCODING_LENGTH || n2.len() != ENCODING_LENGTH {
         panic!("One (or two) invalid note encodings");

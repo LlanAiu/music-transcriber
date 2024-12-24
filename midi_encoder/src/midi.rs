@@ -1,7 +1,7 @@
 // builtin
 
 // external
-use midly::{Smf, Timing, TrackEventKind};
+use midly::{Smf, Header, Track, Timing, TrackEvent, TrackEventKind, MidiMessage, MetaMessage, num::*};
 
 // internal
 use crate::types::NoteEvent;
@@ -36,8 +36,12 @@ pub fn parse_midi(file_path: &str) -> Vec<NoteEvent> {
                 let timestamp_ms =
                     (current_ticks as f64 * tempo as f64 / tpq as f64 / 1_000.0) as u32;
                 match message {
-                    midly::MidiMessage::NoteOn { key, vel: _ } => {
-                        events.push(NoteEvent::new(timestamp_ms, key.as_int(), true));
+                    midly::MidiMessage::NoteOn { key, vel } => {
+                        if vel.as_int() == 0 {
+                            events.push(NoteEvent::new(timestamp_ms, key.as_int(), false));
+                        } else {
+                            events.push(NoteEvent::new(timestamp_ms, key.as_int(), true));
+                        }
                     }
                     midly::MidiMessage::NoteOff { key, vel: _ } => {
                         events.push(NoteEvent::new(timestamp_ms, key.as_int(), false));
@@ -51,6 +55,59 @@ pub fn parse_midi(file_path: &str) -> Vec<NoteEvent> {
     events
 }
 
+pub fn write_midi(events: &Vec<NoteEvent>, file_path: &str) {
+    let mut track = Track::new();
+    let mut last_timestamp = 0;
+
+    let tempo = 500_000; // microseconds
+    let tpq = 480;
+
+    track.push(TrackEvent {
+        delta: u28::new(0),
+        kind: TrackEventKind::Meta(MetaMessage::Tempo(u24::new(tempo))),
+    });
+
+    for event in events {
+        let timestamp_ticks = (event.get_timestamp() as f64 * tpq as f64 * 1_000.0 / tempo as f64) as u32;
+        let delta = timestamp_ticks - last_timestamp;
+        last_timestamp = timestamp_ticks;
+
+        let delta = u28::from(delta);
+        let kind = if event.is_note_on() {
+            TrackEventKind::Midi {
+                channel: u4::new(0),
+                message: MidiMessage::NoteOn {
+                    key: u7::new(event.get_key_index()),
+                    vel: u7::new(64),
+                },
+            }
+        } else {
+            TrackEventKind::Midi {
+                channel: u4::new(0),
+                message: MidiMessage::NoteOff {
+                    key: u7::new(event.get_key_index()),
+                    vel: u7::new(64),
+                },
+            }
+        };
+
+        track.push(TrackEvent {
+            delta,
+            kind,
+        });
+    }
+
+    let smf = Smf {
+        header: Header::new(midly::Format::SingleTrack, midly::Timing::Metrical(u15::new(tpq))),
+        tracks: vec![track],
+    };
+
+    let mut buffer = Vec::new();
+    smf.write(&mut buffer).expect("Failed to write MIDI data");
+
+    std::fs::write(file_path, buffer).expect("Failed to write MIDI file");
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -60,5 +117,19 @@ mod tests {
         let events: Vec<NoteEvent> = parse_midi("./tests/Timing_Test.mid");
         println!("{:?}", events);
         assert!(!events.is_empty());
+    }
+
+    #[test]
+    fn training_data_test() {
+        let events: Vec<NoteEvent> = parse_midi("./tests/Data_Test.midi");
+        let events_head: Vec<NoteEvent> = events.iter().take(20).cloned().collect();
+        println!("{:#?}", events_head);
+        assert!(!events.is_empty());
+    }
+
+    #[test]
+    fn test_write_midi() {
+        let events: Vec<NoteEvent> = parse_midi("./tests/Timing_Test.mid");
+        write_midi(&events, "./tests/output/C_only.mid");
     }
 }
