@@ -24,8 +24,9 @@ pub fn pcm_to_spectrograph(pcm: PCMBuffer) -> Spectrograph {
     let cqt_features = cqt.process(&pcm.samples, hop_size)
         .expect("Error computing CQT");
 
+    let max_value = cqt_features.iter().cloned().fold(0./0., f32::max);
     let spectrograph: Vec<Vec<f32>> = cqt_features.outer_iter()
-        .map(|timestep| timestep.iter().cloned().collect())
+        .map(|timestep| timestep.iter().map(|&val| val / max_value).collect())
         .collect();
 
     Spectrograph { 
@@ -45,7 +46,7 @@ impl Spectrograph {
             .iter()
             .map(|timestep| {
                 let (index, max) = find_max(timestep);
-                let frequency = self.frequency_ratio.powi(index as i32);
+                let frequency = 27.5 * self.frequency_ratio.powi(index as i32);
                 (index, max, frequency)
             })
             .collect()
@@ -59,16 +60,13 @@ impl Spectrograph {
         let root = BitMapBackend::new(filename, (1024, 768)).into_drawing_area();
         root.fill(&WHITE)?;
 
-        let max_value = self.graph.iter().flatten().cloned().fold(0./0., f32::max);
-        let min_value = self.graph.iter().flatten().cloned().fold(0./0., f32::min);
-
         let mut chart = ChartBuilder::on(&root)
             .caption("Spectrograph Heatmap", ("sans-serif", 50).into_font())
             .margin(10)
             .x_label_area_size(30)
             .y_label_area_size(30)
             .build_cartesian_2d(
-                (0..self.graph[0].len()).log_scale(),
+                0..self.graph[0].len(),
                 0..self.graph.len()
             )?;
 
@@ -76,9 +74,8 @@ impl Spectrograph {
 
         for (y, row) in self.graph.iter().enumerate() {
             for (x, &value) in row.iter().enumerate() {
-                let intensity = (value - min_value) / (max_value - min_value);
                 let color = RGBColor(
-                    (255.0 * intensity) as u8,
+                    (255.0 * value) as u8,
                     0,
                     0,
                 );
@@ -94,20 +91,6 @@ impl Spectrograph {
     }
 }
 
-// fn split_by_timestep<T: Clone>(vector: &Vec<T>, samples: usize) -> Vec<Vec<T>> {
-//     let mut iter = vector.chunks(samples);
-//     let mut split: Vec<Vec<T>> = Vec::new();
-
-//     let mut ptr = iter.next();
-//     while !ptr.is_none() {
-//         let val = ptr.unwrap_or(&[]);
-//         split.push(val.to_vec());
-//         ptr = iter.next();
-//     }
-
-//     split
-// }
-
 fn find_max(vector: &Vec<f32>) -> (usize, f32) {
     let mut max: f32 = 0.0;
     let mut index: usize = 0;
@@ -122,7 +105,19 @@ fn find_max(vector: &Vec<f32>) -> (usize, f32) {
 
 #[cfg(test)]
 mod test {
+    use crate::pcm::{audio_to_pcm, AudioConfig};
+
     use super::*;
 
-    
-}
+    #[test]
+    fn basic_frequency_test() {
+        let pcm: PCMBuffer = audio_to_pcm(AudioConfig::new("./tests/700hz_test.mp3"));
+        let graph: Spectrograph = pcm_to_spectrograph(pcm);
+        const TIME_PER_INDEX: f32 = 512.0 / 44100.0;
+
+        for (i, (index, value, frequency)) in graph.find_max_frequency().iter().enumerate() {
+            let time: f32 = TIME_PER_INDEX * (i as f32);
+            println!("Time {time}: max value {value} @ index {index} w/ frequency {frequency}");
+        }
+    }
+} 
