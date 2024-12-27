@@ -19,7 +19,7 @@ pub fn pcm_to_spectrograph(pcm: PCMBuffer) -> Spectrograph {
 
     let cqt: Cqt = Cqt::new(params);
 
-    let hop_size: usize = 512;
+    let hop_size: usize = 512; // timestep of 512/44100 
 
     let cqt_features = cqt.process(&pcm.samples, hop_size)
         .expect("Error computing CQT");

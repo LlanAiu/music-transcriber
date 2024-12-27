@@ -3,11 +3,40 @@
 // external
 
 // internal
-use crate::types::{MIDIEncoding, NoteEvent, EncodingData};
+use crate::types::{EncodingData, MIDIEncoding, Note, NoteEvent, AddNoteResult};
 use crate::constants::ENCODING_LENGTH;
 
 
-//rethink due to too close note diffs?
+pub fn encode_rework(data: EncodingData) -> MIDIEncoding {
+    let events: &Vec<NoteEvent> = data.get_events();
+    let timestep_ms: u32 = data.get_timestep();
+
+    let mut time: u32 = 0;
+    let mut encoding: Vec<Vec<f32>> = Vec::new();
+    let prev: &mut Note = &mut Note::none();
+    let next: &mut Note = &mut Note::none();
+
+    for event in events.iter() {
+        let same_timestep: bool = event.get_timestamp().abs_diff(time) < timestep_ms;
+
+        if same_timestep {
+            match prev.try_add(event) {
+                AddNoteResult::Duplicate => {
+                    println!("Tried to add duplicate event -- skipping");
+                },
+                AddNoteResult::PushToNext(note) => {
+                    next.try_add(note);
+                },
+                AddNoteResult::Ok => {}
+            }
+        } else {
+
+        }
+    }
+
+    MIDIEncoding::new(timestep_ms, encoding)
+}
+
 pub fn encode(data: EncodingData) -> MIDIEncoding {
     let events: &Vec<NoteEvent> = data.get_events();
     let timestep_ms: u32 = data.get_timestep();
