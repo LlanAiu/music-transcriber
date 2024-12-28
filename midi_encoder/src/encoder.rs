@@ -4,20 +4,20 @@
 
 // internal
 use crate::types::{EncodingData, MIDIEncoding, Note, NoteEvent, AddNoteResult};
-use crate::constants::ENCODING_LENGTH;
 
 
-pub fn encode_rework(data: EncodingData) -> MIDIEncoding {
+// just betting nobody can hit the same note twice in one timestep...
+pub fn encode(data: EncodingData) -> MIDIEncoding {
     let events: &Vec<NoteEvent> = data.get_events();
-    let timestep_ms: u32 = data.get_timestep();
+    let timestep_ms: f32 = data.get_timestep();
 
-    let mut time: u32 = 0;
-    let mut encoding: Vec<Vec<f32>> = Vec::new();
+    let mut time: f32 = 0.0;
+    let mut encoding: Vec<Note> = Vec::new();
     let prev: &mut Note = &mut Note::none();
     let next: &mut Note = &mut Note::none();
 
     for event in events.iter() {
-        let same_timestep: bool = event.get_timestamp().abs_diff(time) < timestep_ms;
+        let same_timestep: bool = (event.get_timestamp() as f32 - time) < timestep_ms;
 
         if same_timestep {
             match prev.try_add(event) {
@@ -30,140 +30,95 @@ pub fn encode_rework(data: EncodingData) -> MIDIEncoding {
                 AddNoteResult::Ok => {}
             }
         } else {
+            let next_time: f32 = event.get_timestamp() as f32;
+            
+            encoding.push(prev.clone());
+            prev.reset();
+            time += timestep_ms;
 
+            let add_next: bool = !next.is_none() && time + timestep_ms <= next_time;
+
+            if add_next {
+                encoding.push(next.clone());
+                time += timestep_ms;
+            } else {
+                let event: Vec<NoteEvent> = next.get_events();
+                
+                for e in event.iter() {
+                    prev.try_add(e);
+                }
+            }
+
+            next.reset();
+
+            while time + timestep_ms <= next_time {
+                encoding.push(Note::none());
+                time += timestep_ms;
+            }
+
+            prev.try_add(event);
         }
     }
 
-    MIDIEncoding::new(timestep_ms, encoding)
-}
-
-pub fn encode(data: EncodingData) -> MIDIEncoding {
-    let events: &Vec<NoteEvent> = data.get_events();
-    let timestep_ms: u32 = data.get_timestep();
+    encoding.push(prev.clone());
     
-    let mut current_time: u32 = 0;
-    let mut encoding: Vec<Vec<f32>> = Vec::new();
-    let mut previous_note: Option<Vec<f32>> = None;
-
-    for event in events.iter() {
-        let should_layer: bool = previous_note.is_some()
-            && event.get_timestamp().abs_diff(current_time) < timestep_ms;
-        if should_layer {
-            let prev: Vec<f32> = previous_note.expect("Cannot layer null note encoding");
-            let note: Vec<f32> = get_note_encoding(event).expect("Failed to get note encoding");
-            previous_note = layer_notes(&prev, &note);
-        } else {
-            if previous_note.is_some() {
-                let note: Vec<f32> = previous_note.expect("Cannot get note encoding");
-                encoding.push(note);
-                current_time += timestep_ms;
-            }
-            let next_time = event.get_timestamp();
-            while current_time + timestep_ms <= next_time {
-                current_time += timestep_ms;
-                encoding.push(vec![0.0; ENCODING_LENGTH]);
-            }
-            previous_note = get_note_encoding(event);
-        }
+    if !next.is_none() {
+        encoding.push(next.clone());
     }
-    encoding.push(previous_note.expect("Cannot get note encoding"));
 
     MIDIEncoding::new(timestep_ms, encoding)
 }
+
+// pub fn encode(data: EncodingData) -> MIDIEncoding {
+//     let events: &Vec<NoteEvent> = data.get_events();
+//     let timestep_ms: u32 = data.get_timestep();
+    
+//     let mut current_time: u32 = 0;
+//     let mut encoding: Vec<Vec<f32>> = Vec::new();
+//     let mut previous_note: Option<Vec<f32>> = None;
+
+//     for event in events.iter() {
+//         let should_layer: bool = previous_note.is_some()
+//             && event.get_timestamp().abs_diff(current_time) < timestep_ms;
+//         if should_layer {
+//             let prev: Vec<f32> = previous_note.expect("Cannot layer null note encoding");
+//             let note: Vec<f32> = get_note_encoding(event).expect("Failed to get note encoding");
+//             previous_note = layer_notes(&prev, &note);
+//         } else {
+//             if previous_note.is_some() {
+//                 let note: Vec<f32> = previous_note.expect("Cannot get note encoding");
+//                 encoding.push(note);
+//                 current_time += timestep_ms;
+//             }
+//             let next_time = event.get_timestamp();
+//             while current_time + timestep_ms <= next_time {
+//                 current_time += timestep_ms;
+//                 encoding.push(vec![0.0; ENCODING_LENGTH]);
+//             }
+//             previous_note = get_note_encoding(event);
+//         }
+//     }
+//     encoding.push(previous_note.expect("Cannot get note encoding"));
+
+//     MIDIEncoding::new(timestep_ms, encoding)
+// }
 
 pub fn decode(midi: MIDIEncoding) -> Vec<NoteEvent> {
     let mut events: Vec<NoteEvent> = Vec::new();
 
-    for (i, encoding) in midi.get_encoding().iter().enumerate() {
-        let decoded: Option<Vec<NoteEvent>> =
-            decode_note_encoding(encoding, (i as u32) * midi.get_timestep());
-        if decoded.is_some() {
-            let event: Vec<NoteEvent> = decoded.expect("Failed to get decoded note event");
-            for e in event {
-                events.push(e);
-            }
+    for note in midi.get_encoding().iter() {
+        if note.is_none() {
+            continue;
+        }
+
+        let event: Vec<NoteEvent> = note.get_events();
+
+        for e in event {
+            events.push(e);
         }
     }
 
     events
-}
-
-/*
- MIDI values go from [21, 108]
- indices 2x = on/off, 2x + 1 for note ID
-*/
-fn get_note_encoding(note: &NoteEvent) -> Option<Vec<f32>> {
-    let mut note_encoding: Vec<f32> = vec![0.0; ENCODING_LENGTH];
-    let note_index: usize = (2 * (note.get_key_index() - 21) + 1) as usize;
-    note_encoding[note_index] = 1.0;
-    if note.is_note_on() {
-        note_encoding[note_index - 1] = 1.0;
-    }
-
-    Some(note_encoding)
-}
-
-fn decode_note_encoding(encoding: &Vec<f32>, timestamp_ms: u32) -> Option<Vec<NoteEvent>> {
-    if encoding.len() != ENCODING_LENGTH {
-        panic!("Not a valid note encoding");
-    }
-
-    let mut events: Vec<NoteEvent> = Vec::new();
-
-    for i in 1..encoding.len() {
-        if i % 2 != 1 {
-            continue;
-        }
-        if encoding[i] == 1.0 {
-            let key: u8 = ((i - 1) / 2 + 21) as u8;
-            let event: NoteEvent = NoteEvent::new(timestamp_ms, key, encoding[i - 1] == 1.0);
-            events.push(event);
-        }
-    }
-
-    if events.is_empty() {
-        return None;
-    }
-    Some(events)
-}
-
-// if same note on + off, push off to next timestep? (somehow the data has 40 ms note diffs...)
-fn layer_notes(n1: &Vec<f32>, n2: &Vec<f32>) -> Option<Vec<f32>> {
-    if n1.len() != ENCODING_LENGTH || n2.len() != ENCODING_LENGTH {
-        panic!("One (or two) invalid note encodings");
-    }
-
-    let mut new_encoding: Vec<f32> = Vec::new();
-
-    for i in 0..ENCODING_LENGTH {
-        if i % 2 != 1 {
-            continue;
-        }
-
-        let mut val: f32 = n1[i] + n2[i];
-        let mut on_off: f32 = n1[i - 1] + n2[i - 1];
-
-        if val > 1.0 {
-            //double note
-            if on_off > 1.0 {
-                // on + on
-                val = 1.0;
-                on_off = 1.0;
-            } else if on_off == 1.0 {
-                // on + off
-                val = 0.0;
-                on_off = 0.0;
-            } else {
-                // off + off
-                val = 1.0;
-            }
-        }
-
-        new_encoding.push(on_off);
-        new_encoding.push(val);
-    }
-
-    Some(new_encoding)
 }
 
 #[cfg(test)]
@@ -174,18 +129,18 @@ mod tests {
     #[test]
     fn encode_simple_midi() {
         let events: Vec<NoteEvent> = parse_midi("./tests/Timing_Test.mid");
-        let data: EncodingData = EncodingData::new(&events, 500);
+        let data: EncodingData = EncodingData::new(&events, 500.0);
         let midi: MIDIEncoding = encode(data);
         println!("{}", midi.get_encoding().len());
-        for (i, vector) in midi.get_encoding().iter().enumerate() {
-            println!("Timestep {i}: {:?}", vector);
+        for (i, note) in midi.get_encoding().iter().enumerate() {
+            println!("Timestep {i}: {:?}", note);
         }
     }
 
     #[test]
     fn encode_complex_midi() {
         let events: Vec<NoteEvent> = parse_midi("./tests/Double_Note_Test.mid");
-        let data: EncodingData = EncodingData::new(&events, 250);
+        let data: EncodingData = EncodingData::new(&events, 250.0);
         let midi: MIDIEncoding = encode(data);
         println!("{}", midi.get_encoding().len());
         for (i, vector) in midi.get_encoding().iter().enumerate() {
@@ -194,27 +149,9 @@ mod tests {
     }
 
     #[test]
-    fn layer_test(){
-        let n1: Vec<f32> = vec![1.0; 5];
-        let n2: Vec<f32> = vec![2.0; 5];
-        assert_eq!(layer_notes(&n1, &n2), Some(vec![3.0; 5]));
-    }
-
-    #[test]
-    fn test_decode_encoding(){
-        let events: Vec<NoteEvent> = parse_midi("./tests/Timing_Test.mid");
-        let data: EncodingData = EncodingData::new(&events, 500);
-        let midi: MIDIEncoding = encode(data);
-
-        let note: Option<Vec<NoteEvent>> = decode_note_encoding(&midi.get_encoding()[2], 1000);
-
-        println!("{:?}", note);
-    }
-
-    #[test]
     fn simple_encode_and_decode(){
         let events: Vec<NoteEvent> = parse_midi("./tests/Timing_Test.mid");
-        let data: EncodingData = EncodingData::new(&events, 500);
+        let data: EncodingData = EncodingData::new(&events, 500.0);
         let encoding: MIDIEncoding = encode(data);
 
         let decoded: Vec<NoteEvent> = decode(encoding);
@@ -227,7 +164,7 @@ mod tests {
     //doesn't return same vectors bc note on & off at same timestep in original midi file (oops)
     fn complex_encode_and_decode(){
         let events: Vec<NoteEvent> = parse_midi("./tests/Double_Note_Test.mid");
-        let data: EncodingData = EncodingData::new(&events, 250);
+        let data: EncodingData = EncodingData::new(&events, 250.0);
         let encoding: MIDIEncoding = encode(data);
 
         let mut decoded: Vec<NoteEvent> = decode(encoding);
@@ -239,41 +176,4 @@ mod tests {
         println!("Original: {:#?}", copy_events);
     }
 
-    #[test]
-    fn layering_same_note() {
-        let on: NoteEvent = NoteEvent::new(0, 40, true);
-        let off: NoteEvent = NoteEvent::new(0, 40, false);
-
-        let on_encoding: Vec<f32> = get_note_encoding(&on)
-            .expect("Failed to get note encoding");
-        let off_encoding: Vec<f32> = get_note_encoding(&off)
-            .expect("Failed to get note encoding");
-
-        let note: Vec<f32> = layer_notes(&off_encoding, &on_encoding)
-            .expect("Failed to layer note encodings");
-
-        assert_eq!(note, vec![0.0; ENCODING_LENGTH]);
-    }
-    
-    #[test]
-    fn layering_different_note() {
-        let one: NoteEvent = NoteEvent::new(0, 21, true);
-        let two: NoteEvent = NoteEvent::new(0, 22, true);
-
-        let one_encoding: Vec<f32> = get_note_encoding(&one)
-            .expect("Failed to get note encoding");
-        let two_encoding: Vec<f32> = get_note_encoding(&two)
-            .expect("Failed to get note encoding");
-
-        let mut answer: Vec<f32> = vec![0.0; ENCODING_LENGTH];
-        answer[0] = 1.0; //note on
-        answer[1] = 1.0; //note 21
-        answer[2] = 1.0; //note on
-        answer[3] = 1.0; //note 22 
-
-        let note: Vec<f32> = layer_notes(&one_encoding, &two_encoding)
-            .expect("Failed to layer note encodings");
-
-        assert_eq!(note , answer);
-    }
 }

@@ -14,7 +14,7 @@ use types::EncodingData;
 use crate::types::{NoteEvent, MIDIEncoding};
 
 
-pub fn generate_midi_encoding(path: &str, timestep_ms: u32) -> MIDIEncoding {
+pub fn generate_midi_encoding(path: &str, timestep_ms: f32) -> MIDIEncoding {
     let events: Vec<NoteEvent> = parse_midi(path);
     let data: EncodingData = EncodingData::new(&events, timestep_ms);
     encode(data)
@@ -32,21 +32,21 @@ mod tests {
 
     #[test]
     fn simple_midi_test() {
-        let midi: MIDIEncoding = generate_midi_encoding("./tests/Timing_Test.mid", 500);
+        let midi: MIDIEncoding = generate_midi_encoding("./tests/Timing_Test.mid", 500.0);
 
         println!{"{:#?}", midi};
     }
 
     #[test]
     fn complex_midi_test() {
-        let midi: MIDIEncoding = generate_midi_encoding("./tests/Double_Note_Test.mid", 250);
+        let midi: MIDIEncoding = generate_midi_encoding("./tests/Double_Note_Test.mid", 250.0);
 
         println!("{:#?}", midi);
     }
 
     #[test]
     fn decode_test() {
-        let midi: MIDIEncoding = generate_midi_encoding("./tests/Double_Note_Test.mid", 250);
+        let midi: MIDIEncoding = generate_midi_encoding("./tests/Double_Note_Test.mid", 250.0);
         decode_to_midi(midi, "./tests/output/MGROL.mid");
     }
 
