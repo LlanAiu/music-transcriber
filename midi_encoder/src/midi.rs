@@ -73,11 +73,11 @@ pub fn write_midi(events: &Vec<NoteEvent>, file_path: &str) {
         last_timestamp = timestamp_ticks;
 
         let delta = u28::from(delta);
-        let kind = if event.is_note_on() {
+        let kind = if event.get_note_ref().is_note_on() {
             TrackEventKind::Midi {
                 channel: u4::new(0),
                 message: MidiMessage::NoteOn {
-                    key: u7::new(event.get_key_index()),
+                    key: u7::new(event.get_note_ref().get_key()),
                     vel: u7::new(64),
                 },
             }
@@ -85,7 +85,7 @@ pub fn write_midi(events: &Vec<NoteEvent>, file_path: &str) {
             TrackEventKind::Midi {
                 channel: u4::new(0),
                 message: MidiMessage::NoteOff {
-                    key: u7::new(event.get_key_index()),
+                    key: u7::new(event.get_note_ref().get_key()),
                     vel: u7::new(64),
                 },
             }

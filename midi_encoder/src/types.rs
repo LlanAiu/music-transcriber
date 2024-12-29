@@ -1,4 +1,5 @@
 // builtin
+use std::mem::take;
 
 // external
 
@@ -6,19 +7,38 @@
 use crate::constants::ENCODING_LENGTH;
 
 
+
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+pub struct Note {
+    key: u8,
+    on: bool,
+}
+
+impl Note {
+    pub fn new(key: u8, on: bool) -> Note {
+        Note { key, on }
+    }
+
+    pub fn get_key(&self) -> u8 {
+        self.key
+    }
+
+    pub fn is_note_on(&self) -> bool {
+        self.on
+    }
+}
+
 #[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Clone)]
 pub struct NoteEvent {
     timestamp_ms: u32,
-    key: u8,
-    note_on: bool,
+    note: Note
 }
 
 impl NoteEvent {
     pub fn new(timestamp: u32, key: u8, note_on: bool) -> NoteEvent {
         NoteEvent {
             timestamp_ms: timestamp,
-            key,
-            note_on,
+            note: Note::new(key, note_on)
         }
     }
 
@@ -26,23 +46,23 @@ impl NoteEvent {
         self.timestamp_ms
     }
 
-    pub fn get_key_index(&self) -> u8 {
-        self.key
+    pub fn get_note_ref(&self) -> &Note {
+        &self.note
     }
 
-    pub fn is_note_on(&self) -> bool {
-        self.note_on
+    pub fn get_note(self) -> Note {
+        self.note
     }
 }
 
 #[derive(Debug)]
 pub struct MIDIEncoding {
     timestep_ms: f32,
-    encoding: Vec<Note>,
+    encoding: Vec<Chord>,
 }
 
 impl MIDIEncoding {
-    pub fn new(timestep_ms: f32, encoding: Vec<Note>) -> MIDIEncoding {
+    pub fn new(timestep_ms: f32, encoding: Vec<Chord>) -> MIDIEncoding {
         MIDIEncoding {timestep_ms, encoding}
     }
 
@@ -50,22 +70,22 @@ impl MIDIEncoding {
         self.timestep_ms
     }
 
-    pub fn get_encoding(&self) -> &Vec<Note> {
+    pub fn get_encoding(&self) -> &Vec<Chord> {
         &self.encoding
     }
 }
 
-pub struct EncodingData<'a> {
-    events: &'a Vec<NoteEvent>,
+pub struct EncodingData {
+    events: Vec<NoteEvent>,
     timestep_ms: f32
 }
 
-impl<'a> EncodingData<'a> {
-    pub fn new(events: &'a Vec<NoteEvent>, timestep_ms: f32) -> EncodingData {
+impl EncodingData {
+    pub fn new(events: Vec<NoteEvent>, timestep_ms: f32) -> EncodingData {
         EncodingData {events, timestep_ms}
     }
 
-    pub fn get_events(&self) -> &Vec<NoteEvent> {
+    pub fn get_events(self) -> Vec<NoteEvent> {
         self.events
     }
 
@@ -74,56 +94,54 @@ impl<'a> EncodingData<'a> {
     }
 }
 
+
 #[derive(Clone, Debug)]
-pub struct Note {
-    events: Vec<NoteEvent>,
-    encoding: Vec<f32>,
+pub struct Chord {
+    notes: Vec<Note>,
     is_none: bool,
 }
 
-impl Note {
-    pub fn new(note: NoteEvent) -> Note {
-        let events: Vec<NoteEvent> = vec![note];
-        Note {
-            events,
-            encoding: vec![0.0],
+impl Chord {
+    pub fn new(note: NoteEvent) -> Chord {
+        let notes: Vec<Note> = vec![note.get_note()];
+
+        Chord {
+            notes,
             is_none: false,
         }
     }
 
-    pub fn none() -> Note {
-        Note {
-            events: Vec::new(),
-            encoding: vec![0.0; ENCODING_LENGTH],
+    pub fn none() -> Chord {
+        Chord {
+            notes: Vec::new(),
             is_none: true
         }
     }
 
-    pub fn from_vec(v: Vec<f32>, timestamp_ms: u32) -> Note {
+    pub fn from_vec(v: &Vec<f32>) -> Chord {
         if v.len() != ENCODING_LENGTH {
             panic!("Not a valid note encoding");
         }
     
-        let mut events: Vec<NoteEvent> = Vec::new();
+        let mut notes: Vec<Note> = Vec::new();
     
         for i in 1..v.len() {
             if i % 2 != 1 {
                 continue;
             }
             if v[i] == 1.0 {
-                let key: u8 = Note::key_of(i);
-                let event: NoteEvent = NoteEvent::new(timestamp_ms, key, v[i - 1] == 1.0);
-                events.push(event);
+                let key: u8 = Chord::key_of(i);
+                let note: Note = Note::new(key, v[i - 1] == 1.0);
+                notes.push(note);
             }
         }
     
-        if events.is_empty() {
-            return Note::none();
+        if notes.is_empty() {
+            return Chord::none();
         }
 
-        Note {
-            events,
-            encoding: v,
+        Chord {
+            notes,
             is_none: false
         }
     }
@@ -144,65 +162,76 @@ impl Note {
         (2 * (key - 21)) as usize
     }
 
-    fn get_encoding(note: &NoteEvent) -> Vec<f32> {
-        let mut note_encoding: Vec<f32> = vec![0.0; ENCODING_LENGTH];
-        let key: u8 = note.get_key_index();
-        note_encoding[Note::key_index(key)] = 1.0;
-        if note.is_note_on() {
-            note_encoding[Note::on_off_index(key)] = 1.0;
-        }
-
-        note_encoding
-    }
-
     pub fn reset(&mut self) {
         self.is_none = true;
-        self.encoding = vec![0.0; ENCODING_LENGTH];
-        self.events.clear();
+        self.notes.clear();
     }
 
     pub fn is_none(&self) -> bool {
         self.is_none
     }
 
-    fn add_note(&mut self, note: NoteEvent) {
+    fn add_note(&mut self, note: Note) {
         self.is_none = false;
-        let encoding: Vec<f32> = Note::get_encoding(&note);
-        let mut new_encoding: Vec<f32> = Vec::new();
-
-        for i in 0..encoding.len() {
-            let val = encoding[i] + self.encoding[i];
-            new_encoding.push(val);
-        }
-
-        self.encoding = new_encoding;
-        
-        self.events.push(note);
+        self.notes.push(note);
     }
 
-    pub fn try_add<'a>(&mut self, note: &'a NoteEvent) -> AddNoteResult<'a> {
-        let key: u8 = note.get_key_index();
-        let same_key: bool = self.encoding[Note::key_index(key)] == 1.0;
-        let same_event: bool = self.events.contains(&note);
+    pub fn try_add(&mut self, note: Note) -> AddNoteResult {
+        let mut same_key: bool = false;
+        let mut same_event: bool = false;
+
+        for n in self.notes.iter() {
+            if n.get_key() == note.get_key() {
+                same_key = true;
+
+                if n.is_note_on() == note.is_note_on() {
+                    same_event = true;
+                }
+            }
+        }
         
         if same_event {
             return AddNoteResult::Duplicate;
         } else if same_key {
             return AddNoteResult::PushToNext(note);
         } else {
-            self.add_note(note.clone());
+            self.add_note(note);
             return AddNoteResult::Ok;
         }
     }
 
-    pub fn get_events(&self) -> Vec<NoteEvent> {
-        self.events.clone()
+    pub fn get_events(&self, timestamp_ms: u32) -> Vec<NoteEvent> {
+        let mut events: Vec<NoteEvent> = Vec::new();
+
+        for note in self.notes.iter() {
+            let event: NoteEvent = NoteEvent::new(timestamp_ms, note.get_key(), note.is_note_on());
+            events.push(event);
+        }
+
+        events
     }
 
+    pub fn get_encoding(&self) -> Vec<f32> {
+        let mut note_encoding: Vec<f32> = vec![0.0; ENCODING_LENGTH];
+        
+        for note in self.notes.iter() {
+            let key: u8 = note.get_key();
+            note_encoding[Chord::key_index(key)] = 1.0;
+            if note.is_note_on() {
+                note_encoding[Chord::on_off_index(key)] = 1.0;
+            } 
+        }
+
+        note_encoding
+    }
+
+    pub fn get_notes(&mut self) -> Vec<Note> {
+        take(&mut self.notes)
+    }
 }
 
-pub enum AddNoteResult<'a> {
+pub enum AddNoteResult {
     Ok,
     Duplicate,
-    PushToNext(&'a NoteEvent)
+    PushToNext(Note)
 }

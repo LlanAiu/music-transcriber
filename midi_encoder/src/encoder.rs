@@ -3,24 +3,24 @@
 // external
 
 // internal
-use crate::types::{EncodingData, MIDIEncoding, Note, NoteEvent, AddNoteResult};
+use crate::types::{AddNoteResult, Chord, EncodingData, MIDIEncoding, Note, NoteEvent};
 
 
 // just betting nobody can hit the same note twice in one timestep...
 pub fn encode(data: EncodingData) -> MIDIEncoding {
-    let events: &Vec<NoteEvent> = data.get_events();
     let timestep_ms: f32 = data.get_timestep();
+    let events: Vec<NoteEvent> = data.get_events();
 
     let mut time: f32 = 0.0;
-    let mut encoding: Vec<Note> = Vec::new();
-    let prev: &mut Note = &mut Note::none();
-    let next: &mut Note = &mut Note::none();
+    let mut encoding: Vec<Chord> = Vec::new();
+    let prev: &mut Chord = &mut Chord::none();
+    let next: &mut Chord = &mut Chord::none();
 
-    for event in events.iter() {
+    for event in events {
         let same_timestep: bool = (event.get_timestamp() as f32 - time) < timestep_ms;
 
         if same_timestep {
-            match prev.try_add(event) {
+            match prev.try_add(event.get_note()) {
                 AddNoteResult::Duplicate => {
                     println!("Tried to add duplicate event -- skipping");
                 },
@@ -42,9 +42,9 @@ pub fn encode(data: EncodingData) -> MIDIEncoding {
                 encoding.push(next.clone());
                 time += timestep_ms;
             } else {
-                let event: Vec<NoteEvent> = next.get_events();
+                let event: Vec<Note> = next.get_notes();
                 
-                for e in event.iter() {
+                for e in event {
                     prev.try_add(e);
                 }
             }
@@ -52,11 +52,11 @@ pub fn encode(data: EncodingData) -> MIDIEncoding {
             next.reset();
 
             while time + timestep_ms <= next_time {
-                encoding.push(Note::none());
+                encoding.push(Chord::none());
                 time += timestep_ms;
             }
 
-            prev.try_add(event);
+            prev.try_add(event.get_note());
         }
     }
 
@@ -69,49 +69,16 @@ pub fn encode(data: EncodingData) -> MIDIEncoding {
     MIDIEncoding::new(timestep_ms, encoding)
 }
 
-// pub fn encode(data: EncodingData) -> MIDIEncoding {
-//     let events: &Vec<NoteEvent> = data.get_events();
-//     let timestep_ms: u32 = data.get_timestep();
-    
-//     let mut current_time: u32 = 0;
-//     let mut encoding: Vec<Vec<f32>> = Vec::new();
-//     let mut previous_note: Option<Vec<f32>> = None;
-
-//     for event in events.iter() {
-//         let should_layer: bool = previous_note.is_some()
-//             && event.get_timestamp().abs_diff(current_time) < timestep_ms;
-//         if should_layer {
-//             let prev: Vec<f32> = previous_note.expect("Cannot layer null note encoding");
-//             let note: Vec<f32> = get_note_encoding(event).expect("Failed to get note encoding");
-//             previous_note = layer_notes(&prev, &note);
-//         } else {
-//             if previous_note.is_some() {
-//                 let note: Vec<f32> = previous_note.expect("Cannot get note encoding");
-//                 encoding.push(note);
-//                 current_time += timestep_ms;
-//             }
-//             let next_time = event.get_timestamp();
-//             while current_time + timestep_ms <= next_time {
-//                 current_time += timestep_ms;
-//                 encoding.push(vec![0.0; ENCODING_LENGTH]);
-//             }
-//             previous_note = get_note_encoding(event);
-//         }
-//     }
-//     encoding.push(previous_note.expect("Cannot get note encoding"));
-
-//     MIDIEncoding::new(timestep_ms, encoding)
-// }
-
 pub fn decode(midi: MIDIEncoding) -> Vec<NoteEvent> {
     let mut events: Vec<NoteEvent> = Vec::new();
 
-    for note in midi.get_encoding().iter() {
-        if note.is_none() {
+    for (i, chord) in midi.get_encoding().iter().enumerate() {
+        if chord.is_none() {
             continue;
         }
 
-        let event: Vec<NoteEvent> = note.get_events();
+        let timestamp_ms: u32 = ((i as f32) * midi.get_timestep()) as u32;
+        let event: Vec<NoteEvent> = chord.get_events(timestamp_ms);
 
         for e in event {
             events.push(e);
@@ -129,7 +96,7 @@ mod tests {
     #[test]
     fn encode_simple_midi() {
         let events: Vec<NoteEvent> = parse_midi("./tests/Timing_Test.mid");
-        let data: EncodingData = EncodingData::new(&events, 500.0);
+        let data: EncodingData = EncodingData::new(events, 500.0);
         let midi: MIDIEncoding = encode(data);
         println!("{}", midi.get_encoding().len());
         for (i, note) in midi.get_encoding().iter().enumerate() {
@@ -140,7 +107,7 @@ mod tests {
     #[test]
     fn encode_complex_midi() {
         let events: Vec<NoteEvent> = parse_midi("./tests/Double_Note_Test.mid");
-        let data: EncodingData = EncodingData::new(&events, 250.0);
+        let data: EncodingData = EncodingData::new(events, 250.0);
         let midi: MIDIEncoding = encode(data);
         println!("{}", midi.get_encoding().len());
         for (i, vector) in midi.get_encoding().iter().enumerate() {
@@ -151,7 +118,7 @@ mod tests {
     #[test]
     fn simple_encode_and_decode(){
         let events: Vec<NoteEvent> = parse_midi("./tests/Timing_Test.mid");
-        let data: EncodingData = EncodingData::new(&events, 500.0);
+        let data: EncodingData = EncodingData::new(events, 500.0);
         let encoding: MIDIEncoding = encode(data);
 
         let decoded: Vec<NoteEvent> = decode(encoding);
@@ -161,10 +128,9 @@ mod tests {
     }
 
     #[test]
-    //doesn't return same vectors bc note on & off at same timestep in original midi file (oops)
     fn complex_encode_and_decode(){
         let events: Vec<NoteEvent> = parse_midi("./tests/Double_Note_Test.mid");
-        let data: EncodingData = EncodingData::new(&events, 250.0);
+        let data: EncodingData = EncodingData::new(events, 250.0);
         let encoding: MIDIEncoding = encode(data);
 
         let mut decoded: Vec<NoteEvent> = decode(encoding);
@@ -174,6 +140,8 @@ mod tests {
 
         println!("Decoded: {:#?}", decoded);
         println!("Original: {:#?}", copy_events);
+
+        assert_eq!(decoded, copy_events);
     }
 
 }
