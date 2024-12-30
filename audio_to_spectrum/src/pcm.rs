@@ -1,4 +1,7 @@
+// builtin 
 use std::{ffi::OsStr, fs::File, path::Path};
+
+// external
 use symphonia::core::{
     audio::{AudioBufferRef, Signal},
     codecs::{DecoderOptions, CODEC_TYPE_NULL},
@@ -8,6 +11,9 @@ use symphonia::core::{
     meta::MetadataOptions,
     probe::{Hint, ProbeResult},
 };
+
+// internal
+
 
 pub struct AudioConfig<'a> {
     file: File,

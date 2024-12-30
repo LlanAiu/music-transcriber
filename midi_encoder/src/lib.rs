@@ -57,4 +57,11 @@ mod tests {
         decode_to_midi(midi, "./tests/output/Data_Rewrite.mid");
     }
 
+    #[test]
+    fn data_test() {
+        let timestep: f32 = 512000.0 / 44100.0;
+        let midi: MIDIEncoding = generate_midi_encoding("./tests/Data_Test.midi", timestep);
+        println!("Number of Encodings: {}", midi.len());
+    }
+
 }

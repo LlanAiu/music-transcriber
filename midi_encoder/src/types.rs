@@ -73,6 +73,10 @@ impl MIDIEncoding {
     pub fn get_encoding(&self) -> &Vec<Chord> {
         &self.encoding
     }
+
+    pub fn len(&self) -> usize {
+        self.encoding.len()
+    }
 }
 
 pub struct EncodingData {

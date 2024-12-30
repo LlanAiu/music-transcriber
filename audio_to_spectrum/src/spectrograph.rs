@@ -56,6 +56,10 @@ impl Spectrograph {
         &self.graph
     }
 
+    pub fn num_timestamps(&self) -> usize {
+        self.graph.len()
+    }
+
     pub fn generate_heatmap(&self, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
         let root = BitMapBackend::new(filename, (1024, 768)).into_drawing_area();
         root.fill(&WHITE)?;

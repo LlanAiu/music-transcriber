@@ -1,10 +1,13 @@
+// builtin
+
+// external
+
+// internal
 mod pcm;
 mod spectrograph;
 use pcm::{audio_to_pcm, AudioConfig, PCMBuffer};
 use spectrograph::{pcm_to_spectrograph, Spectrograph};
 
-// const FFT_LEN: usize = 16392;
-// const NUM_SAMPLES: usize = 2205;
 
 pub fn audio_to_spectrograph(file_path: &str) -> Spectrograph {
     let pcm: PCMBuffer = audio_to_pcm(AudioConfig::new(file_path));
@@ -45,5 +48,11 @@ mod tests {
         let image: String = String::from("./tests/spectrographs/K331_15s_image.png");
         let spectrograph: Spectrograph = audio_to_spectrograph(&path);
         let _ = spectrograph.generate_heatmap(&image).expect("Failed to generate heatmap");
+    }
+
+    #[test]
+    fn data_test() {
+        let spectrograph: Spectrograph = audio_to_spectrograph("./tests/Data_test.mp3");
+        println!("Vectors: {}", spectrograph.num_timestamps());
     }
 }
