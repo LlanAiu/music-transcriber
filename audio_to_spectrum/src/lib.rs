@@ -4,7 +4,7 @@
 
 // internal
 mod pcm;
-mod spectrograph;
+pub mod spectrograph;
 use pcm::{audio_to_pcm, AudioConfig, PCMBuffer};
 use spectrograph::{pcm_to_spectrograph, Spectrograph};
 

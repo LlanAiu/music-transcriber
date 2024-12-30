@@ -3,16 +3,13 @@
 // external
 
 // internal
-mod types;
+pub mod types;
 mod constants;
 mod midi;
 mod encoder;
 use encoder::{decode, encode};
 use midi::{parse_midi, write_midi};
-use types::EncodingData;
-
-use crate::types::{NoteEvent, MIDIEncoding};
-
+use types::{EncodingData, NoteEvent, MIDIEncoding};
 
 pub fn generate_midi_encoding(path: &str, timestep_ms: f32) -> MIDIEncoding {
     let events: Vec<NoteEvent> = parse_midi(path);
