@@ -2,93 +2,70 @@
 use std::fs;
 
 // external
-use ndarray::{Array, Array2};
-use ndarray_rand::RandomExt;
-use ndarray_rand::rand_distr::Uniform;
 
 // internal
+use crate::types::{Bias, Weight};
 
-
-struct RNN {
+pub struct RNN {
     // p
     layers: usize,
 
-    // x
-    input_size: usize,
+    input_size: usize,          // i
+    output_size: usize,         // o
+    units_by_layer: Vec<usize>, //l0, l1, .. l(p-1)
 
-    // o
-    output_size: usize,
-
-    //l1, l2, l3, ... lp
-    units_by_layer: Vec<usize>,
-
-    // n x l1 matrix
-    input_weights: Array2<f32>,
-
-    //lp x o matrix
-    output_weights: Array2<f32>,
-
-    // l(n-1) x ln matrix, p - 1 indices
-    hidden_weights: Vec<Array2<f32>>,
+    // i x l0, l0 x l1, l1 x l2, ... l(p-1) x o; p + 1 indices
+    hidden_weights: Vec<Weight>,
 
     // ln x ln matrix, p indices
-    recurrence_weights: Vec<Array2<f32>>,
+    recurrence_weights: Vec<Weight>,
+
+    // l0, l1, ... l(p-1), o; p + 1 indices
+    biases: Vec<Bias>,
 }
 
 impl RNN {
     pub fn new(
-        layers: usize, 
-        input_size: usize, 
-        output_size: usize, 
-        units_by_layer: Vec<usize>
+        layers: usize,
+        input_size: usize,
+        output_size: usize,
+        units_by_layer: Vec<usize>,
     ) -> RNN {
         if layers < 1 || input_size < 1 || output_size < 1 {
             panic!("Cannot create RNN structure with specified parameters: {layers} layers, {input_size} input dim, {output_size} output dim");
         } else if units_by_layer.len() != layers {
             panic!("Layer size mismatch");
         }
- 
-        let mut hidden_weights: Vec<Array2<f32>> = Vec::with_capacity(layers - 1);
-        let mut recurrence_weights: Vec<Array2<f32>> = Vec::with_capacity(layers);
 
-        let first_layer_units: &usize = units_by_layer.get(0).expect("Failed to get index 0");
-        let last_layer_units: &usize = units_by_layer.get(units_by_layer.len() - 1).expect("Failed to get last index");
+        let mut hidden_weights: Vec<Weight> = Vec::with_capacity(layers + 1);
+        let mut recurrence_weights: Vec<Weight> = Vec::with_capacity(layers);
+        let mut biases: Vec<Bias> = Vec::with_capacity(layers + 1);
 
-        let input_weights: Array2<f32> = Array::random(
-            (input_size, *first_layer_units),
-            Uniform::new(-0.3, 0.3)
-        );
+        for i in 0..=layers {
+            let dim1: usize;
+            let dim2: usize;
 
-        let output_weights: Array2<f32> = Array::random(
-            (*last_layer_units, output_size),
-            Uniform::new(-0.3, 0.3)
-        );
+            if i == 0 {
+                dim1 = input_size;
+                dim2 = *units_by_layer.get(i).expect("Failed to get layer dimension");
+            } else if i == layers {
+                dim1 = *units_by_layer.get(i - 1).expect("Failed to get layer dimension");
+                dim2 = output_size;
+            } else {
+                dim1 = *units_by_layer.get(i - 1).expect("Failed to get layer dimension");
+                dim2 = *units_by_layer.get(i).expect("Failed to get layer dimension");
+            }
 
-        if units_by_layer.len() > 1{
-            for i in 1..units_by_layer.len() {
-                let dim1 = units_by_layer.get(i - 1).expect("Failed to get layer size");
-                let dim2 = units_by_layer.get(i).expect("Failed to get layer size");
+            let hidden_weight: Weight = Weight::random((dim1, dim2), -0.3, 0.3);
+            hidden_weights.push(hidden_weight);
 
-                let hidden_weight: Array2<f32> = Array::random(
-                    (*dim1, *dim2), 
-                    Uniform::new(-0.3, 0.3)
-                );
-                hidden_weights.push(hidden_weight);
-
-                if i == 1 {
-                    let first_recurrence_weight: Array2<f32> = Array::random(
-                        (*dim1, *dim1), 
-                        Uniform::new(-0.3, 0.3)
-                    );
-                    recurrence_weights.push(first_recurrence_weight);
-                }
-
-                let recurrence_weight: Array2<f32> = Array::random(
-                    (*dim2, *dim2),
-                    Uniform::new(-0.3, 0.3)
-                );
+            if i != layers {
+                let recurrence_weight: Weight = Weight::random((dim2, dim2), -0.3, 0.3);
                 recurrence_weights.push(recurrence_weight);
             }
+
+            let bias: Bias = Bias::random(dim2, -0.3, 0.3);
+            biases.push(bias);
         }
 
         RNN {
@@ -96,59 +73,49 @@ impl RNN {
             input_size,
             output_size,
             units_by_layer,
-            input_weights,
-            output_weights,
             hidden_weights,
-            recurrence_weights
+            recurrence_weights,
+            biases
         }
     }
 
     pub fn from_save(file_path: &str) -> RNN {
         let s: String = fs::read_to_string(file_path).expect("Failed to read save file");
-
         let mut lines = s.lines();
-        let layers: usize = lines.next().unwrap().parse().expect("Failed to parse layers");
-        let input_size: usize = lines.next().unwrap().parse().expect("Failed to parse input size");
-        let output_size: usize = lines.next().unwrap().parse().expect("Failed to parse output size");
-        let units_by_layer: Vec<usize> = lines.next().unwrap()
+
+        let layers: usize = lines.next().expect("Failed to get next line")
+            .parse().expect("Failed to parse layers");
+
+        let input_size: usize = lines.next().expect("Failed to get next line")
+            .parse().expect("Failed to parse input size");
+        
+        let output_size: usize = lines.next().expect("Failed to get next line")
+            .parse().expect("Failed to parse output size");
+
+        let units_by_layer: Vec<usize> = lines.next().expect("Failed to get next line")
             .split(',')
-            .map(|s| s.parse().expect("Failed to parse layer units"))
+            .map(|s| s.parse().expect("Failed to parse layer dimension"))
             .collect();
 
-        let input_weights: Array2<f32> = Array::from_shape_vec(
-            (input_size, units_by_layer[0]),
-            lines.next().unwrap()
-                .split(',')
-                .map(|s| s.parse().expect("Failed to parse input weights"))
-                .collect()
-        ).expect("Failed to create input weights array");
-
-        let output_weights: Array2<f32> = Array::from_shape_vec(
-            (units_by_layer[layers - 1], output_size),
-            lines.next().unwrap()
-                .split(',')
-                .map(|s| s.parse().expect("Failed to parse output weights"))
-                .collect()
-        ).expect("Failed to create output weights array");
-
-        let mut hidden_weights: Vec<Array2<f32>> = Vec::with_capacity(layers - 1);
-        for i in 0..(layers - 1) {
-            let shape = (units_by_layer[i], units_by_layer[i + 1]);
-            let data: Vec<f32> = lines.next().unwrap()
-                .split(',')
-                .map(|s| s.parse().expect("Failed to parse hidden weights"))
-                .collect();
-            hidden_weights.push(Array::from_shape_vec(shape, data).expect("Failed to create hidden weight array"));
+        let mut hidden_weights: Vec<Weight> = Vec::with_capacity(layers + 1);
+        for _i in 0..=layers {
+            let data_str: &str = lines.next().expect("Failed to get next line");
+            let weight: Weight = Weight::from_string(data_str);
+            hidden_weights.push(weight);
         }
 
-        let mut recurrence_weights: Vec<Array2<f32>> = Vec::with_capacity(layers);
-        for i in 0..layers {
-            let shape = (units_by_layer[i], units_by_layer[i]);
-            let data: Vec<f32> = lines.next().unwrap()
-                .split(',')
-                .map(|s| s.parse().expect("Failed to parse recurrence weights"))
-                .collect();
-            recurrence_weights.push(Array::from_shape_vec(shape, data).expect("Failed to create recurrence weight array"));
+        let mut recurrence_weights: Vec<Weight> = Vec::with_capacity(layers);
+        for _i in 0..layers {
+            let data_str: &str = lines.next().expect("Failed to get next line");
+            let weight: Weight = Weight::from_string(data_str);
+            recurrence_weights.push(weight);
+        }
+
+        let mut biases: Vec<Bias> = Vec::with_capacity(layers + 1);
+        for _i in 0..=layers {
+            let data_str: &str = lines.next().expect("Failed to get next line");
+            let bias: Bias = Bias::from_string(data_str);
+            biases.push(bias);
         }
 
         RNN {
@@ -156,46 +123,63 @@ impl RNN {
             input_size,
             output_size,
             units_by_layer,
-            input_weights,
-            output_weights,
             hidden_weights,
-            recurrence_weights
+            recurrence_weights,
+            biases
         }
     }
 
-    pub fn load_to_file(&self, file_path: &str) {
-        let mut file_content = format!(
-            "{}\n{}\n{}\n{}\n",
-            self.layers,
-            self.input_size,
-            self.output_size,
-            self.units_by_layer.iter().map(|u| u.to_string()).collect::<Vec<String>>().join(",")
-        );
+    pub fn save_to_file(&self, file_path: &str) {
+        let mut file_content: String = format!("{}", self.layers);
+        file_content.push('\n');
 
-        file_content.push_str(
-            &self.input_weights.iter().map(|w| w.to_string()).collect::<Vec<String>>().join(",")
+        file_content.push_str(&self.input_size.to_string());
+        file_content.push('\n');
+
+        file_content.push_str(&self.output_size.to_string());
+        file_content.push('\n');
+
+        file_content.push_str(&self
+                .units_by_layer
+                .iter()
+                .map(|u| u.to_string())
+                .collect::<Vec<String>>()
+                .join(","),
         );
         file_content.push('\n');
 
-        file_content.push_str(
-            &self.output_weights.iter().map(|w| w.to_string()).collect::<Vec<String>>().join(",")
-        );
-        file_content.push('\n');
 
-        for hidden_weight in &self.hidden_weights {
-            file_content.push_str(
-                &hidden_weight.iter().map(|w| w.to_string()).collect::<Vec<String>>().join(",")
-            );
+        for hidden_weight in self.hidden_weights.iter() {
+            file_content.push_str(&hidden_weight.to_string());
             file_content.push('\n');
         }
 
-        for recurrence_weight in &self.recurrence_weights {
-            file_content.push_str(
-                &recurrence_weight.iter().map(|w| w.to_string()).collect::<Vec<String>>().join(",")
-            );
+        for recurrence_weight in self.recurrence_weights.iter() {
+            file_content.push_str(&recurrence_weight.to_string());
+            file_content.push('\n');
+        }
+
+        for bias in self.biases.iter() {
+            file_content.push_str(&bias.to_string());
             file_content.push('\n');
         }
 
         fs::write(file_path, file_content).expect("Failed to write to file");
     }
+
+    // pub fn predict(seq: Vec<Array2<f32>>) -> Vec<Vec<f32>> {
+    //     let mut output_seq: Vec<Vec<f32>> = Vec::new();
+    //     for arr in seq {
+    //         let input_dim = arr.dim().0 - 1;
+    //         let weights = arr.slice(s![1..input_dim, ..]);
+    //         let biases = arr.slice(s![0..1, ..]);
+
+    //     }
+
+    //     output_seq
+    // }
+
+    // fn feedforward(v: Array2<f32>) -> Vec<f32> {
+
+    // }
 }
