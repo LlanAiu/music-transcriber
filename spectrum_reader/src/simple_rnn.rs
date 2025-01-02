@@ -3,8 +3,10 @@ use std::fs;
 
 // external
 
+use ndarray::{Array1, Array2, Axis};
+
 // internal
-use crate::types::{Bias, Weight};
+use crate::types::{Bias, ParameterConfig, Weight};
 
 pub struct RNN {
     // p
@@ -30,6 +32,7 @@ impl RNN {
         input_size: usize,
         output_size: usize,
         units_by_layer: Vec<usize>,
+        parameters: ParameterConfig
     ) -> RNN {
         if layers < 1 || input_size < 1 || output_size < 1 {
             panic!("Cannot create RNN structure with specified parameters: {layers} layers, {input_size} input dim, {output_size} output dim");
@@ -56,15 +59,15 @@ impl RNN {
                 dim2 = *units_by_layer.get(i).expect("Failed to get layer dimension");
             }
 
-            let hidden_weight: Weight = Weight::random((dim1, dim2), -0.3, 0.3);
+            let hidden_weight: Weight = Weight::random((dim1, dim2), parameters.min_weight(), parameters.max_weight());
             hidden_weights.push(hidden_weight);
 
             if i != layers {
-                let recurrence_weight: Weight = Weight::random((dim2, dim2), -0.3, 0.3);
+                let recurrence_weight: Weight = Weight::random((dim2, dim2), parameters.min_weight(), parameters.max_weight());
                 recurrence_weights.push(recurrence_weight);
             }
 
-            let bias: Bias = Bias::random(dim2, -0.3, 0.3);
+            let bias: Bias = Bias::random(dim2, parameters.min_bias(), parameters.max_bias());
             biases.push(bias);
         }
 
@@ -167,19 +170,52 @@ impl RNN {
         fs::write(file_path, file_content).expect("Failed to write to file");
     }
 
-    // pub fn predict(seq: Vec<Array2<f32>>) -> Vec<Vec<f32>> {
-    //     let mut output_seq: Vec<Vec<f32>> = Vec::new();
-    //     for arr in seq {
-    //         let input_dim = arr.dim().0 - 1;
-    //         let weights = arr.slice(s![1..input_dim, ..]);
-    //         let biases = arr.slice(s![0..1, ..]);
+    pub fn predict(&self, seq: Vec<Vec<f32>>) -> Vec<Vec<f32>> {
+        let mut output_seq: Vec<Vec<f32>> = Vec::new();
+        let mut prev_activations: Vec<Array2<f32>> = Vec::new();
 
-    //     }
+        for arr in seq {
+            let (output, activations) = self.feedforward(arr, &prev_activations);
+            prev_activations = activations;
+            output_seq.push(output);
+        }
 
-    //     output_seq
-    // }
+        output_seq
+    }
 
-    // fn feedforward(v: Array2<f32>) -> Vec<f32> {
+    fn feedforward(&self, v: Vec<f32>, prev: &Vec<Array2<f32>>) -> (Vec<f32>, Vec<Array2<f32>>) {
+        if v.len() != self.input_size {
+            panic!("Invalid input size");
+        } 
 
-    // }
+        let mut arr: Array2<f32> = Array1::from_vec(v).insert_axis(Axis(0));
+        let mut activations: Vec<Array2<f32>> = Vec::with_capacity(self.layers);
+        
+        for i in 0..=self.layers {
+            let hidden_weight: &Weight = self.hidden_weights.get(i).expect("Failed to get weight");
+            arr = arr.dot(&hidden_weight.get_weight_matrix());
+
+            if i < self.layers {
+                let previous: Option<&Array2<f32>> = prev.get(i);
+
+                if previous.is_some() {
+                    let recurrent_weight: &Weight = self.recurrence_weights.get(i).expect("Failed to get weights");
+                    let val: Array2<f32> = previous.expect("Failed to get previous activations")
+                        .dot(&recurrent_weight.get_weight_matrix());
+                    arr = arr + &val;
+                }
+            }
+
+            let bias: &Bias = self.biases.get(i).expect("Failed to get bias");
+            arr = arr + bias.get_row_vector();
+            
+            if i < self.layers {
+                activations.push(arr.clone());
+            }
+        }
+
+        let output: Vec<f32> = arr.remove_axis(Axis(0)).to_vec();
+        
+        (output, activations)
+    }
 }

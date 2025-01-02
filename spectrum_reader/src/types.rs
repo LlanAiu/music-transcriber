@@ -141,3 +141,37 @@ impl ToString for Weight {
         formatted
     }
 }
+
+pub struct ParameterConfig {
+    min_weight: f32,
+    max_weight: f32,
+    min_bias: f32,
+    max_bias: f32,
+}
+
+impl ParameterConfig {
+    pub fn new(min_weight: f32, max_weight: f32, min_bias: f32, max_bias: f32) -> ParameterConfig{
+        ParameterConfig { 
+            min_weight,
+            max_weight,
+            min_bias,
+            max_bias
+        }
+    }
+
+    pub fn min_weight(&self) -> f32 {
+        self.min_weight
+    }
+
+    pub fn max_weight(&self) -> f32 {
+        self.max_weight
+    }
+
+    pub fn min_bias(&self) -> f32 {
+        self.min_bias
+    }
+
+    pub fn max_bias(&self) -> f32 {
+        self.max_bias
+    }
+}
