@@ -5,20 +5,23 @@
 // internal
 mod types;
 mod simple_rnn;
-use crate::simple_rnn::RNN;
+
+pub use crate::simple_rnn::RNN;
 
 
 #[cfg(test)]
 mod tests {
-    use types::ParameterConfig;
+    use types::{Activation, ActivationConfig, ParameterConfig, WeightConfig};
 
     use super::*;
 
 
     #[test]
     pub fn construct_test() {
-        let params: ParameterConfig = ParameterConfig::new(-0.3, 0.3, -0.3, 0.3);
-        let rnn: RNN = RNN::new(1, 10, 2, vec![5], params);
+        let mut params: ParameterConfig = ParameterConfig::new(1, 10, 2, vec![5]);
+        let weights: WeightConfig = WeightConfig::new(-0.3, 0.3, -0.3, 0.3);
+        let mut activations: ActivationConfig = ActivationConfig::new(Activation::relu(), Activation::sigmoid());
+        let rnn: RNN = RNN::new(&mut params, weights, &mut activations);
         rnn.save_to_file("./tests/weights.txt");
     }
 
@@ -30,8 +33,10 @@ mod tests {
 
     #[test]
     pub fn predict_test() {
-        let params: ParameterConfig = ParameterConfig::new(0.999, 1.0, -0.01, 0.01);
-        let rnn: RNN = RNN::new(1, 10, 2, vec![5], params);
+        let mut params: ParameterConfig = ParameterConfig::new(1, 10, 2, vec![5]);
+        let weights: WeightConfig = WeightConfig::new(0.999, 1.0, -0.01, 0.01);
+        let mut activations: ActivationConfig = ActivationConfig::new(Activation::none(), Activation::none());
+        let mut rnn: RNN = RNN::new(&mut params, weights, &mut activations);
         let input_seq: Vec<Vec<f32>> = vec![
             vec![1.0; 10],
             vec![0.0; 10],

@@ -1,5 +1,7 @@
 // builtin 
 
+use std::mem::{replace, take};
+
 // external
 use ndarray::{Array, Array1, Array2, ArrayView2, Axis};
 use ndarray_rand::RandomExt;
@@ -8,19 +10,6 @@ use ndarray_rand::rand_distr::Uniform;
 // internal
 extern crate midi_encoder;
 extern crate audio_to_spectrum;
-use midi_encoder::types::MIDIEncoding;
-use audio_to_spectrum::spectrograph::Spectrograph;
-
-
-pub trait Transcribe {
-    fn translate(&self, spectrum: Vec<Vec<f32>>) -> Vec<f32>;
-}
-
-pub trait Trainable {
-    fn process(&mut self, input: Spectrograph, output: MIDIEncoding);
-
-    fn record(&mut self, input: Vec<Vec<f32>>, output: Vec<f32>);
-}
 
 pub struct Bias {
     array: Array1<f32>
@@ -142,16 +131,16 @@ impl ToString for Weight {
     }
 }
 
-pub struct ParameterConfig {
+pub struct WeightConfig {
     min_weight: f32,
     max_weight: f32,
     min_bias: f32,
     max_bias: f32,
 }
 
-impl ParameterConfig {
-    pub fn new(min_weight: f32, max_weight: f32, min_bias: f32, max_bias: f32) -> ParameterConfig{
-        ParameterConfig { 
+impl WeightConfig {
+    pub fn new(min_weight: f32, max_weight: f32, min_bias: f32, max_bias: f32) -> WeightConfig{
+        WeightConfig { 
             min_weight,
             max_weight,
             min_bias,
@@ -173,5 +162,124 @@ impl ParameterConfig {
 
     pub fn max_bias(&self) -> f32 {
         self.max_bias
+    }
+}
+
+pub struct Activation {
+    function: Box<dyn FnMut(f32) -> f32>,
+    name: String,
+}
+
+impl Activation {
+    pub fn sigmoid() -> Activation {
+        let function: Box<dyn FnMut(f32) -> f32> = Box::new(|x: f32| 1.0 / (1.0 + (-x).exp()));
+        
+        Activation {
+            function,
+            name: "sigmoid".to_string()
+        }
+    }
+
+    pub fn relu() -> Activation {
+        let function: Box<dyn FnMut(f32) -> f32> = Box::new(|x: f32| x.max(0.0));
+
+        Activation {
+            function,
+            name: "relu".to_string()
+        }
+    }
+
+    pub fn none() -> Activation {
+        Activation::default()
+    }
+
+    pub fn from_string(s: &str) -> Activation {
+        match s {
+            "sigmoid" => { Activation::sigmoid() },
+            "relu" => { Activation::relu() },
+            _ => { Default::default() }
+        }
+    }
+
+    pub fn of(&mut self, x: f32) -> f32 {
+        (self.function)(x)
+    }
+
+    pub fn get_fn(&mut self) -> Box<dyn FnMut(f32) -> f32> {
+        let function: Box<dyn FnMut(f32) -> f32>;
+        if self.name() == "sigmoid" {
+            function = Box::new(|x: f32| 1.0 / (1.0 + (-x).exp()));
+        } else if self.name() == "relu" {
+            function = Box::new(|x: f32| x.max(0.0));
+        } else {
+            function = Box::new(|x: f32| x);
+        }
+        replace(&mut self.function, function)
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+impl Default for Activation {
+    fn default() -> Self {
+        Self { 
+            function: Box::new(|x: f32| x),
+            name: "none".to_string()
+        }
+    }
+}
+
+pub struct ActivationConfig {
+    hidden: Activation,
+    end: Activation
+}
+
+impl ActivationConfig {
+    pub fn new(hidden: Activation, end: Activation) -> ActivationConfig {
+        ActivationConfig { hidden, end }
+    }
+
+    pub fn get_hidden(&mut self) -> Activation {
+        take(&mut self.hidden)
+    }
+
+    pub fn get_end(&mut self) -> Activation {
+        take(&mut self.end)
+    }
+}
+
+pub struct ParameterConfig {
+    layers: usize,
+    input_size: usize,
+    output_size: usize,
+    units_by_layer: Vec<usize>
+}
+
+impl ParameterConfig {
+    pub fn new(layers: usize, input_size: usize, output_size: usize, units_by_layer: Vec<usize>) -> ParameterConfig {
+        ParameterConfig {
+            layers,
+            input_size,
+            output_size,
+            units_by_layer
+        }
+    }
+
+    pub fn layers(&self) -> usize {
+        self.layers
+    }
+
+    pub fn input_size(&self) -> usize {
+        self.input_size
+    }
+
+    pub fn output_size(&self) -> usize {
+        self.output_size
+    }
+
+    pub fn units_by_layer(&mut self) -> Vec<usize> {
+        take(&mut self.units_by_layer)
     }
 }
