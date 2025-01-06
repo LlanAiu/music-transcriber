@@ -6,7 +6,7 @@ use std::fs;
 use ndarray::{Array1, Array2, Axis};
 
 // internal
-use crate::types::{Activation, ActivationConfig, Bias, ParameterConfig, Weight, WeightConfig};
+use crate::types::{Activation, ActivationConfig, Bias, ParameterConfig, Update, Weight, WeightConfig};
 
 pub struct RNN {
     // p
@@ -240,5 +240,36 @@ impl RNN {
         let output: Vec<f32> = arr.remove_axis(Axis(0)).to_vec();
         
         (output, activations)
+    }
+
+    pub fn predict_and_update(&mut self, seq: Vec<Vec<f32>>, ans: Vec<Vec<f32>>, batch: usize) {
+        let mut prev_activations: Vec<Array2<f32>> = Vec::new();
+        let mut update: Update = Update::new(self.input_size, self.output_size, &self.units_by_layer, batch);
+
+        for (i, arr) in seq.into_iter().enumerate() {
+            let (output, activations) = self.feedforward(arr, &prev_activations);
+            let answer = ans.get(i).expect("Failed to get desired output vector");
+            self.add_update(&mut update, output, answer, &activations, &prev_activations);
+
+            if update.should_update() {
+                self.process_update(&mut update);
+            }
+
+            prev_activations = activations;
+        }
+    }
+
+    fn add_update(&self,
+        grad: &mut Update,
+        output: Vec<f32>, 
+        answer: &Vec<f32>, 
+        act: &Vec<Array2<f32>>, 
+        prev_act: &Vec<Array2<f32>>
+    ) {
+        todo!()
+    }
+
+    fn process_update(&mut self, grad: &mut Update) {
+        todo!()
     }
 }

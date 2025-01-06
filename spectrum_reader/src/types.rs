@@ -165,6 +165,7 @@ impl WeightConfig {
     }
 }
 
+//gotta rethink, this is ugly
 pub struct Activation {
     function: Box<dyn FnMut(f32) -> f32>,
     name: String,
@@ -281,5 +282,66 @@ impl ParameterConfig {
 
     pub fn units_by_layer(&mut self) -> Vec<usize> {
         take(&mut self.units_by_layer)
+    }
+}
+
+pub struct Update {
+    batch_count: usize,
+    max_batch_size: usize,
+    hidden_update: Vec<Array2<f32>>,
+    recurrence_update: Vec<Array2<f32>>,
+    biases_update: Vec<Array1<f32>>
+}
+
+impl Update {
+    pub fn new(
+        input_size: usize, 
+        output_size: usize, 
+        units_by_layer: &Vec<usize>, 
+        max_batch_size: usize
+    ) -> Update {
+        let layers: usize = units_by_layer.len();
+        let mut hidden_update: Vec<Array2<f32>> = Vec::with_capacity(layers + 1);
+        let mut recurrence_update: Vec<Array2<f32>> = Vec::with_capacity(layers);
+        let mut biases_update: Vec<Array1<f32>> = Vec::with_capacity(layers + 1);
+
+        for i in 0..=layers {
+            let dim1: usize;
+            let dim2: usize;
+
+            if i == 0 {
+                dim1 = input_size;
+                dim2 = *units_by_layer.get(i).expect("Failed to get layer dimension");
+            } else if i == layers {
+                dim1 = *units_by_layer.get(i - 1).expect("Failed to get layer dimension");
+                dim2 = output_size;
+            } else {
+                dim1 = *units_by_layer.get(i - 1).expect("Failed to get layer dimension");
+                dim2 = *units_by_layer.get(i).expect("Failed to get layer dimension");
+            }
+
+            let hidden: Array2<f32> = Array2::zeros((dim1, dim2));
+            hidden_update.push(hidden);
+
+            if i != layers {
+                let recurrence: Array2<f32> = Array2::zeros((dim2, dim2));
+                recurrence_update.push(recurrence);
+            }
+
+            let bias: Array1<f32> = Array1::zeros(dim2);
+            biases_update.push(bias);
+        }
+
+        Update {
+            batch_count: 0,
+            max_batch_size,
+            hidden_update,
+            recurrence_update,
+            biases_update
+        }
+    }
+
+    pub fn should_update(&self) -> bool {
+        self.batch_count >= self.max_batch_size
     }
 }
