@@ -53,6 +53,10 @@ impl Bias {
     pub fn get_column_vector(&self) -> ArrayView2<f32> {
         self.array.view().insert_axis(Axis(1))
     }
+
+    pub fn update(&mut self, update: &Array1<f32>) {
+        self.array += update;
+    }
 }
 
 impl ToString for Bias {
@@ -111,6 +115,10 @@ impl Weight {
 
     pub fn get_weight_matrix(&self) -> ArrayView2<f32> {
         self.array.view()
+    }
+
+    pub fn update(&mut self, update: &Array2<f32>) {
+        self.array += update;
     }
 }
 
@@ -285,6 +293,7 @@ impl ParameterConfig {
     }
 }
 
+#[derive(Debug)]
 pub struct Update {
     batch_count: usize,
     max_batch_size: usize,
@@ -320,15 +329,15 @@ impl Update {
                 dim2 = *units_by_layer.get(i).expect("Failed to get layer dimension");
             }
 
-            let hidden: Array2<f32> = Array2::zeros((dim1, dim2));
+            let hidden: Array2<f32> = Array2::ones((dim1, dim2));
             hidden_update.push(hidden);
 
             if i != layers {
-                let recurrence: Array2<f32> = Array2::zeros((dim2, dim2));
+                let recurrence: Array2<f32> = Array2::ones((dim2, dim2));
                 recurrence_update.push(recurrence);
             }
 
-            let bias: Array1<f32> = Array1::zeros(dim2);
+            let bias: Array1<f32> = Array1::ones(dim2);
             biases_update.push(bias);
         }
 
@@ -343,5 +352,57 @@ impl Update {
 
     pub fn should_update(&self) -> bool {
         self.batch_count >= self.max_batch_size
+    }
+
+    pub fn combine_update(&mut self, hidden: Vec<Array2<f32>>, recurrence: Vec<Array2<f32>>, biases: Vec<Array1<f32>>) {
+        self.batch_count += 1;
+        todo!()
+    }
+
+    pub fn get_hidden_update(&self) -> &Vec<Array2<f32>> {
+        &self.hidden_update
+    }
+
+    pub fn get_recurrence_update(&self) -> &Vec<Array2<f32>> {
+        &self.recurrence_update
+    }
+
+    pub fn get_biases_update(&self) -> &Vec<Array1<f32>> {
+        &self.biases_update
+    }
+
+    pub fn clear(&mut self) {
+        self.hidden_update.iter_mut().for_each(|arr| {
+            arr.map_inplace(|a| {
+                *a = 0.0;
+            });
+        });
+
+        self.biases_update.iter_mut().for_each(|arr| {
+            arr.map_inplace(|a| {
+                *a = 0.0;
+            });
+        });
+        
+        self.recurrence_update.iter_mut().for_each(|arr| {
+            arr.map_inplace(|a| {
+                *a = 0.0;
+            });
+        });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn update_test() {
+        let units_by_layer: Vec<usize> = vec![5];
+        let mut update: Update = Update::new(10, 2, &units_by_layer, 10);
+        println!("{:?}", update);
+        update.clear();
+
+        println!("{:?}", update);
     }
 }

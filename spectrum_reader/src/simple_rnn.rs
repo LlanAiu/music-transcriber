@@ -266,10 +266,77 @@ impl RNN {
         act: &Vec<Array2<f32>>, 
         prev_act: &Vec<Array2<f32>>
     ) {
+        let mut hidden_grads: Vec<Array2<f32>> = Vec::new();
+        let mut recurrence_grads: Vec<Array2<f32>> = Vec::new();
+        let mut bias_grads: Vec<Array1<f32>> = Vec::new();
+
+        for i in 0..=self.layers {
+            let hidden_grad: Array2<f32> = self.get_hidden_gradient(i, &output, answer, act, prev_act);
+            let bias_grad: Array1<f32> = self.get_bias_gradient(i, &output, answer, act, prev_act);
+            
+            hidden_grads.push(hidden_grad);
+            bias_grads.push(bias_grad);
+
+            if i < self.layers {
+                let recurrence_grad: Array2<f32> = self.get_recurrence_gradient(i, &output, answer, act, prev_act);
+                recurrence_grads.push(recurrence_grad);
+            }
+        }
+
+        grad.combine_update(hidden_grads, recurrence_grads, bias_grads);
+    }
+
+    fn get_hidden_gradient(
+        &self,
+        layer: usize, 
+        output: &Vec<f32>, 
+        answer: &Vec<f32>, 
+        act: &Vec<Array2<f32>>, 
+        prev_act: &Vec<Array2<f32>>
+    ) -> Array2<f32> {
+        todo!()
+    }
+
+    fn get_bias_gradient(
+        &self,
+        layer: usize, 
+        output: &Vec<f32>, 
+        answer: &Vec<f32>, 
+        act: &Vec<Array2<f32>>, 
+        prev_act: &Vec<Array2<f32>>
+    ) -> Array1<f32> {
+        todo!()
+    }
+
+    fn get_recurrence_gradient(
+        &self,
+        layer: usize, 
+        output: &Vec<f32>, 
+        answer: &Vec<f32>, 
+        act: &Vec<Array2<f32>>, 
+        prev_act: &Vec<Array2<f32>>
+    ) -> Array2<f32> {
         todo!()
     }
 
     fn process_update(&mut self, grad: &mut Update) {
-        todo!()
+        let hidden_updates: &Vec<Array2<f32>> = grad.get_hidden_update();
+        let bias_updates: &Vec<Array1<f32>> = grad.get_biases_update();
+        let recurrence_updates: &Vec<Array2<f32>> = grad.get_recurrence_update();
+
+        for i in 0..=self.layers {
+            let hidden_update: &Array2<f32> = hidden_updates.get(i).expect("Failed to get hidden weight update");
+            self.hidden_weights[i].update(hidden_update);
+
+            let bias_update: &Array1<f32> = bias_updates.get(i).expect("Failed to get bias update");
+            self.biases[i].update(bias_update);
+
+            if i < self.layers {
+                let recurrence_update: &Array2<f32> = recurrence_updates.get(i).expect("Failed to get recurrence update");
+                self.recurrence_weights[i].update(recurrence_update);
+            }
+        }
+
+        grad.clear();
     }
 }
