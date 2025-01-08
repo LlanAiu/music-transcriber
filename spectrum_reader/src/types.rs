@@ -356,7 +356,25 @@ impl Update {
 
     pub fn combine_update(&mut self, hidden: Vec<Array2<f32>>, recurrence: Vec<Array2<f32>>, biases: Vec<Array1<f32>>) {
         self.batch_count += 1;
-        todo!()
+
+        if hidden.len() != self.hidden_update.len() || 
+            recurrence.len() != self.recurrence_update.len() ||
+            biases.len() != self.biases_update.len() 
+        {
+            panic!("Dimension mismatch between existing and new updates");
+        }
+
+        for (i, update) in hidden.iter().enumerate() {
+            self.hidden_update[i] += update;
+        }
+
+        for (i, update) in recurrence.iter().enumerate() {
+            self.recurrence_update[i] += update;
+        }
+
+        for (i, update) in biases.iter().enumerate() {
+            self.biases_update[i] += update;
+        }
     }
 
     pub fn get_hidden_update(&self) -> &Vec<Array2<f32>> {
