@@ -15,7 +15,6 @@ mod tests {
 
     use super::*;
 
-
     #[test]
     pub fn construct_test() {
         let mut params: ParameterConfig = ParameterConfig::new(1, 10, 2, vec![5]);

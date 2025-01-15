@@ -3,7 +3,7 @@ use std::fs;
 
 // external
 
-use ndarray::{Array1, Array2, Axis};
+use ndarray::{Array1, Array2, ArrayView2, Axis};
 
 // internal
 use crate::types::{Activation, ActivationConfig, Bias, ParameterConfig, Update, Weight, WeightConfig};
@@ -270,53 +270,28 @@ impl RNN {
         let mut recurrence_grads: Vec<Array2<f32>> = Vec::new();
         let mut bias_grads: Vec<Array1<f32>> = Vec::new();
 
-        for i in 0..=self.layers {
-            let hidden_grad: Array2<f32> = self.get_hidden_gradient(i, &output, answer, act, prev_act);
-            let bias_grad: Array1<f32> = self.get_bias_gradient(i, &output, answer, act, prev_act);
-            
-            hidden_grads.push(hidden_grad);
-            bias_grads.push(bias_grad);
+        // process and collect sum, cost, and ending activation into gradient vector dep. on output nodes
 
-            if i < self.layers {
-                let recurrence_grad: Array2<f32> = self.get_recurrence_gradient(i, &output, answer, act, prev_act);
-                recurrence_grads.push(recurrence_grad);
+        for i in (0..=self.layers).rev() {
+            let mut hidden: Array2<f32> = Array2::zeros(self.hidden_weights[i].dim());
+            let act_froms: ArrayView2<f32> = act[i].view().reversed_axes();
+
+            //previous layer activations
+            hidden = act_froms.broadcast(hidden.dim()).expect("Failed to duplicate activations").to_owned();
+
+            
+            //scale each value accordingly by the previously computed gradient
+            let prev: Array2<f32> = Array2::zeros((2, 2));
+
+            for (i, mut v) in hidden.axis_iter_mut(Axis(0)).enumerate() {
+                v.map_inplace(|f: &mut f32| *f *= prev.get((0, i)).expect("failed to get matrix value"));
             }
+
+            //recalculate gradient to be dependent on output nodes of previous layer
+
         }
 
         grad.combine_update(hidden_grads, recurrence_grads, bias_grads);
-    }
-
-    fn get_hidden_gradient(
-        &self,
-        layer: usize, 
-        output: &Vec<f32>, 
-        answer: &Vec<f32>, 
-        act: &Vec<Array2<f32>>, 
-        prev_act: &Vec<Array2<f32>>
-    ) -> Array2<f32> {
-        todo!()
-    }
-
-    fn get_bias_gradient(
-        &self,
-        layer: usize, 
-        output: &Vec<f32>, 
-        answer: &Vec<f32>, 
-        act: &Vec<Array2<f32>>, 
-        prev_act: &Vec<Array2<f32>>
-    ) -> Array1<f32> {
-        todo!()
-    }
-
-    fn get_recurrence_gradient(
-        &self,
-        layer: usize, 
-        output: &Vec<f32>, 
-        answer: &Vec<f32>, 
-        act: &Vec<Array2<f32>>, 
-        prev_act: &Vec<Array2<f32>>
-    ) -> Array2<f32> {
-        todo!()
     }
 
     fn process_update(&mut self, grad: &mut Update) {
@@ -338,5 +313,20 @@ impl RNN {
         }
 
         grad.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn broadcast_test(){
+        let activation: Array1<f32> = Array1::from_vec(vec![1.0, 2.0, 3.0]);
+        let binding = activation.insert_axis(Axis(0));
+
+        let broadcasted = binding.broadcast((3, 2)).expect("failed to broadcast vector");
+
+        println!("{:?}", broadcasted);
     }
 }
