@@ -194,7 +194,7 @@ impl RNN {
         let mut prev_activations: Vec<Array2<f32>> = Vec::new();
 
         for arr in seq {
-            let (output, activations) = self.feedforward(arr, &prev_activations);
+            let (output, activations, _raw) = self.feedforward(arr, &prev_activations);
             prev_activations = activations;
             output_seq.push(output);
         }
@@ -202,13 +202,14 @@ impl RNN {
         output_seq
     }
 
-    fn feedforward(&mut self, v: Vec<f32>, prev: &Vec<Array2<f32>>) -> (Vec<f32>, Vec<Array2<f32>>) {
+    fn feedforward(&mut self, v: Vec<f32>, prev: &Vec<Array2<f32>>) -> (Vec<f32>, Vec<Array2<f32>>, Vec<Array2<f32>>) {
         if v.len() != self.input_size {
             panic!("Invalid input size");
         } 
 
         let mut arr: Array2<f32> = Array1::from_vec(v).insert_axis(Axis(0));
         let mut activations: Vec<Array2<f32>> = Vec::with_capacity(self.layers);
+        let mut raw_nodes: Vec<Array2<f32>> = Vec::with_capacity(self.layers + 1);
         
         for i in 0..=self.layers {
             let hidden_weight: &Weight = self.hidden_weights.get(i).expect("Failed to get weight");
@@ -228,9 +229,10 @@ impl RNN {
             let bias: &Bias = self.biases.get(i).expect("Failed to get bias");
             arr = arr + bias.get_row_vector();
 
-            arr.mapv_inplace(self.hidden_activation.get_fn());
+            raw_nodes.push(arr.clone());
             
             if i < self.layers {
+                arr.mapv_inplace(self.hidden_activation.get_fn());
                 activations.push(arr.clone());
             }
         }
@@ -239,7 +241,7 @@ impl RNN {
 
         let output: Vec<f32> = arr.remove_axis(Axis(0)).to_vec();
         
-        (output, activations)
+        (output, activations, raw_nodes)
     }
 
     pub fn predict_and_update(&mut self, seq: Vec<Vec<f32>>, ans: Vec<Vec<f32>>, batch: usize) {
@@ -247,9 +249,9 @@ impl RNN {
         let mut update: Update = Update::new(self.input_size, self.output_size, &self.units_by_layer, batch);
 
         for (i, arr) in seq.into_iter().enumerate() {
-            let (output, activations) = self.feedforward(arr, &prev_activations);
+            let (output, activations, raw) = self.feedforward(arr, &prev_activations);
             let answer = ans.get(i).expect("Failed to get desired output vector");
-            self.add_update(&mut update, output, answer, &activations, &prev_activations);
+            self.add_update(&mut update, output, answer, &activations, &prev_activations, &raw);
 
             if update.should_update() {
                 self.process_update(&mut update);
@@ -264,34 +266,55 @@ impl RNN {
         output: Vec<f32>, 
         answer: &Vec<f32>, 
         act: &Vec<Array2<f32>>, 
-        prev_act: &Vec<Array2<f32>>
+        prev_act: &Vec<Array2<f32>>,
+        raw: &Vec<Array2<f32>>
     ) {
         let mut hidden_grads: Vec<Array2<f32>> = Vec::new();
         let mut recurrence_grads: Vec<Array2<f32>> = Vec::new();
         let mut bias_grads: Vec<Array1<f32>> = Vec::new();
 
-        // process and collect sum, cost, and ending activation into gradient vector dep. on output nodes
+        let raw_outputs: &Array2<f32> = raw.get(self.layers).expect("Failed to get raw outputs");
+        let prev_grad: Array1<f32> = self.get_output_grad(&output, answer, raw_outputs);
 
         for i in (0..=self.layers).rev() {
             let mut hidden: Array2<f32> = Array2::zeros(self.hidden_weights[i].dim());
             let act_froms: ArrayView2<f32> = act[i].view().reversed_axes();
 
-            //previous layer activations
+            //start as previous layer activations
             hidden = act_froms.broadcast(hidden.dim()).expect("Failed to duplicate activations").to_owned();
 
             
-            //scale each value accordingly by the previously computed gradient
+            //Do some mathy math with precomputed fake gradient to get more real gradient
             let prev: Array2<f32> = Array2::zeros((2, 2));
 
             for (i, mut v) in hidden.axis_iter_mut(Axis(0)).enumerate() {
                 v.map_inplace(|f: &mut f32| *f *= prev.get((0, i)).expect("failed to get matrix value"));
             }
 
-            //recalculate gradient to be dependent on output nodes of previous layer
+            //recalculate gradient to be more real (push back to previous layer)
 
         }
 
         grad.combine_update(hidden_grads, recurrence_grads, bias_grads);
+    }
+
+
+    //need test - really the whole update process but uhh this in particular.
+    fn get_output_grad(&self, output: &Vec<f32>, answer: &Vec<f32>, raw: &Array2<f32>) -> Array1<f32> {
+        let mut loss_vec: Vec<f32> = Vec::new();
+        for (i, out) in output.iter().enumerate() {
+            let expected: &f32 = answer.get(i).expect("Failed to get vector value");
+            let residual: f32 = expected - out;
+            loss_vec.push(residual);
+        }
+
+        let mut loss: Array1<f32> = Array1::from_vec(loss_vec);
+        let mut scale: Array1<f32> = raw.clone().remove_axis(Axis(1));
+        scale.mapv_inplace(self.end_activation.get_deriv());
+        scale *= -1.0;
+
+        loss = loss * &scale;
+        loss
     }
 
     fn process_update(&mut self, grad: &mut Update) {

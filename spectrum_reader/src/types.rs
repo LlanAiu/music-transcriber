@@ -234,6 +234,24 @@ impl Activation {
         replace(&mut self.function, function)
     }
 
+    pub fn get_deriv(&self) -> Box<dyn FnMut(f32) -> f32> {
+        let function: Box<dyn FnMut(f32) -> f32>; 
+        if self.name() == "sigmoid" {
+            function = Box::new(|x: f32| ((-x).exp()) / ((1.0 + (-x).exp()).powi(2)));
+        } else if self.name() == "relu" {
+            function = Box::new(|x: f32| {
+                if x > 0.0 {
+                    return 1.0;
+                } else {
+                    return 0.0;
+                }
+            });
+        } else {
+            function = Box::new(|x: f32| 1.0);
+        }
+        function
+    }
+
     pub fn name(&self) -> &str {
         &self.name
     }
