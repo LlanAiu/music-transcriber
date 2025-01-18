@@ -208,8 +208,10 @@ impl RNN {
         } 
 
         let mut arr: Array2<f32> = Array1::from_vec(v).insert_axis(Axis(0));
-        let mut activations: Vec<Array2<f32>> = Vec::with_capacity(self.layers);
+        let mut activations: Vec<Array2<f32>> = Vec::with_capacity(self.layers + 1);
         let mut raw_nodes: Vec<Array2<f32>> = Vec::with_capacity(self.layers + 1);
+
+        activations.push(arr.clone());
         
         for i in 0..=self.layers {
             let hidden_weight: &Weight = self.hidden_weights.get(i).expect("Failed to get weight");
@@ -241,6 +243,12 @@ impl RNN {
 
         let output: Vec<f32> = arr.remove_axis(Axis(0)).to_vec();
         
+        /*
+        Quick note before I get tripped up again:
+        - output - last output layer only
+        - activations - input + activation wrapped node values up to (but not including) final output
+        - raw_nodes - pre-activation node values for all hidden layers + output (but not input)
+         */
         (output, activations, raw_nodes)
     }
 
@@ -279,7 +287,7 @@ impl RNN {
         for i in (0..=self.layers).rev() {
             let layer_activation: &Array2<f32> = act.get(i).expect("Failed to get activations");
 
-            let hidden: Array2<f32> = self.compute_hidden_grad(i, &prev_grad);
+            let hidden: Array2<f32> = self.compute_hidden_grad(i, &prev_grad, layer_activation);
             let bias: Array1<f32> = self.compute_bias_grad(i, &prev_grad);
             let recurrence: Array2<f32> = self.compute_recurrence_grad(i, &prev_grad);
 
@@ -312,8 +320,19 @@ impl RNN {
         loss
     }
 
-    fn compute_hidden_grad(&self, layer: usize, prev_grad: &Array1<f32>) -> Array2<f32> {
-        todo!()
+    fn compute_hidden_grad(&self, layer: usize, prev_grad: &Array1<f32>, input_act: &Array2<f32>) -> Array2<f32> {
+        let dim = self.hidden_weights[layer].dim();
+
+        let grad_matrix: ArrayView2<f32> = prev_grad.view().insert_axis(Axis(0));
+        let grads: ArrayView2<f32> = grad_matrix.broadcast(dim)
+            .expect("Failed to broadcast gradient vector");
+
+        let mut hidden_update: Array2<f32> = input_act.view().reversed_axes().broadcast(dim)
+            .expect("Failed to broadcast input vector").to_owned();
+
+        hidden_update = hidden_update * grads;
+        
+        hidden_update
     }
 
     fn compute_bias_grad(&self, layer: usize, prev_grad: &Array1<f32>) -> Array1<f32> {
@@ -365,11 +384,25 @@ mod tests {
     }
 
     #[test]
-    fn array_test(){
-        let mut test_vec: Vec<f32> = Vec::new();
-        test_vec.insert(0, 0.0);
-        println!("{:?}", test_vec);
-        test_vec.insert(0, 1.0);
-        println!("{:?}", test_vec);
+    fn gradient_test(){
+        let mut params: ParameterConfig = ParameterConfig::new(1, 3, 2, vec![4]);
+        let weights: WeightConfig = WeightConfig::new(0.999, 1.0, -0.01, 0.01);
+        let mut activations: ActivationConfig = ActivationConfig::new(Activation::none(), Activation::none());
+        let rnn: RNN = RNN::new(&mut params, weights, &mut activations);
+
+        let prev_grad_vec: Vec<f32> = vec![1.0, 2.0];
+        let prev_grad: Array1<f32> = Array1::from_vec(prev_grad_vec);
+
+        let input_act_vec: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
+        let input_act: Array2<f32> = Array1::from_vec(input_act_vec).insert_axis(Axis(0));
+
+        let gradient = rnn.compute_hidden_grad(1, &prev_grad, &input_act);
+    
+
+        let ans_vec: Vec<f32> = vec![1.0, 2.0, 2.0, 4.0, 3.0, 6.0, 4.0, 8.0];
+        let ans: Array2<f32> = Array2::from_shape_vec((4, 2), ans_vec).expect("Failed to create ans matrix");
+
+        println!("{:?}", gradient);
+        assert_eq!(gradient, ans);
     }
 }
