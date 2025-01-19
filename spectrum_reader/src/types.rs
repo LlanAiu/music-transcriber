@@ -3,7 +3,7 @@
 use std::mem::{replace, take};
 
 // external
-use ndarray::{Array, Array1, Array2, ArrayView1, ArrayView2, Axis};
+use ndarray::{Array, Array1, Array2, ArrayView2, Axis};
 use ndarray_rand::RandomExt;
 use ndarray_rand::rand_distr::Uniform;
 
@@ -123,10 +123,6 @@ impl Weight {
 
     pub fn dim(&self) -> (usize, usize) {
         self.array.dim()
-    }
-
-    pub fn get_from_weight_slice(&self, from_index: usize) -> Array1<f32> {
-        self.array.clone().index_axis_move(Axis(0), from_index)
     }
 }
 
