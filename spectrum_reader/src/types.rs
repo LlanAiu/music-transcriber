@@ -50,9 +50,9 @@ impl Bias {
         self.array.view().insert_axis(Axis(0))
     }
     
-    pub fn get_column_vector(&self) -> ArrayView2<f32> {
-        self.array.view().insert_axis(Axis(1))
-    }
+    // pub fn get_column_vector(&self) -> ArrayView2<f32> {
+    //     self.array.view().insert_axis(Axis(1))
+    // }
 
     pub fn update(&mut self, update: &Array1<f32>) {
         self.array += update;
@@ -243,7 +243,7 @@ impl Activation {
                 }
             });
         } else {
-            function = Box::new(|x: f32| 1.0);
+            function = Box::new(|_x: f32| 1.0);
         }
         function
     }

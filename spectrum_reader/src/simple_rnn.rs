@@ -309,8 +309,6 @@ impl RNN {
         grad.combine_update(hidden_grads, recurrence_grads, bias_grads);
     }
 
-
-    //need test - really the whole update process but uhh this in particular.
     fn get_output_grad(&self, output: &Vec<f32>, answer: &Vec<f32>, raw: &Array2<f32>) -> Array1<f32> {
         let mut loss_vec: Vec<f32> = Vec::new();
         for (i, out) in output.iter().enumerate() {
@@ -319,13 +317,12 @@ impl RNN {
             loss_vec.push(residual);
         }
 
-        let mut loss: Array1<f32> = Array1::from_vec(loss_vec);
-        let mut scale: Array1<f32> = raw.clone().remove_axis(Axis(1));
+        let loss: Array1<f32> = Array1::from_vec(loss_vec);
+        let mut scale: Array1<f32> = raw.clone().remove_axis(Axis(0));
         scale.mapv_inplace(self.end_activation.get_deriv());
         scale *= -1.0;
 
-        loss = loss * &scale;
-        loss
+        loss * scale
     }
 
     fn compute_hidden_grad(&self, layer: usize, prev_grad: &Array1<f32>, input_act: &Array2<f32>) -> Array2<f32> {
@@ -344,7 +341,14 @@ impl RNN {
     }
 
     fn compute_bias_grad(&self, layer: usize, prev_grad: &Array1<f32>) -> Array1<f32> {
-        if prev_grad.dim() != self.units_by_layer[layer] {
+        let expected_dim: usize;
+        if layer == self.layers {
+            expected_dim = self.output_size;
+        } else {
+            expected_dim = self.units_by_layer[layer];
+        }
+
+        if prev_grad.dim() != expected_dim{
             panic!("Mismatched bias/gradient vector dimensions!");
         }
 
@@ -352,7 +356,12 @@ impl RNN {
     }
 
     fn compute_recurrence_grad(&self, layer: usize, prev_grad: &Array1<f32>, prev_act: &Array2<f32>) -> Array2<f32> {
-        let dim: (usize, usize) = self.hidden_weights[layer].dim();
+        if layer >= self.layers {
+            panic!("Invalid layer index!");
+        }
+
+        let layer_dim: usize = self.units_by_layer[layer];
+        let dim: (usize, usize) = (layer_dim, layer_dim);
 
         let grad_matrix: ArrayView2<f32> = prev_grad.view().insert_axis(Axis(0));
         let grads: ArrayView2<f32> = grad_matrix.broadcast(dim)
@@ -411,17 +420,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn broadcast_test(){
-        let activation: Array1<f32> = Array1::from_vec(vec![1.0, 2.0, 3.0]);
-        let binding = activation.insert_axis(Axis(0));
-
-        let broadcasted = binding.broadcast((3, 2)).expect("failed to broadcast vector");
-
-        println!("{:?}", broadcasted);
-    }
-
-    #[test]
-    fn gradient_test(){
+    fn hidden_gradient_test(){
         let mut params: ParameterConfig = ParameterConfig::new(1, 3, 2, vec![4]);
         let weights: WeightConfig = WeightConfig::new(0.999, 1.0, -0.01, 0.01);
         let mut activations: ActivationConfig = ActivationConfig::new(Activation::none(), Activation::none());
@@ -441,5 +440,96 @@ mod tests {
 
         println!("{:?}", gradient);
         assert_eq!(gradient, ans);
+    }
+
+    #[test]
+    fn bias_gradient_test(){
+        let mut params: ParameterConfig = ParameterConfig::new(1, 3, 2, vec![4]);
+        let weights: WeightConfig = WeightConfig::new(0.999, 1.0, -0.01, 0.01);
+        let mut activations: ActivationConfig = ActivationConfig::new(Activation::none(), Activation::none());
+        let rnn: RNN = RNN::new(&mut params, weights, &mut activations);
+
+        let prev_grad_vec: Vec<f32> = vec![1.0, 2.0];
+        let prev_grad: Array1<f32> = Array1::from_vec(prev_grad_vec);
+
+        let gradient = rnn.compute_bias_grad(1, &prev_grad);
+    
+
+        let ans_vec: Vec<f32> = vec![1.0, 2.0];
+        let ans: Array1<f32> = Array1::from_vec(ans_vec);
+
+        println!("{:?}", gradient);
+        assert_eq!(gradient, ans);
+    }
+
+    #[test]
+    fn recurrence_gradient_test() {
+        let mut params: ParameterConfig = ParameterConfig::new(1, 2, 2, vec![3]);
+        let weights: WeightConfig = WeightConfig::new(0.999, 1.0, -0.01, 0.01);
+        let mut activations: ActivationConfig = ActivationConfig::new(Activation::none(), Activation::none());
+        let rnn: RNN = RNN::new(&mut params, weights, &mut activations);
+
+        let prev_grad_vec: Vec<f32> = vec![1.0, 1.0, 1.0];
+        let prev_grad: Array1<f32> = Array1::from_vec(prev_grad_vec);
+
+        let prev_act_vec: Vec<f32> = vec![1.0, 2.0, 3.0];
+        let prev_act: Array2<f32> = Array1::from_vec(prev_act_vec).insert_axis(Axis(0));
+
+        let gradient: Array2<f32> = rnn.compute_recurrence_grad(0, &prev_grad, &prev_act);
+
+        let ans_vec: Vec<f32> = vec![1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0];
+        let ans: Array2<f32> = Array2::from_shape_vec((3, 3), ans_vec).expect("Failed to create ans matrix");
+
+        println!("{:?}", gradient);
+        assert_eq!(gradient, ans);
+    }
+
+    #[test]
+    fn backprop_test() {
+        let mut params: ParameterConfig = ParameterConfig::new(1, 2, 2, vec![3]);
+        let weights: WeightConfig = WeightConfig::new(0.999, 1.0, -0.01, 0.01);
+        let mut activations: ActivationConfig = ActivationConfig::new(Activation::relu(), Activation::relu());
+        let rnn: RNN = RNN::new(&mut params, weights, &mut activations);
+
+        let prev_grad_vec: Vec<f32> = vec![2.0, 2.0];
+        let prev_grad: Array1<f32> = Array1::from_vec(prev_grad_vec);
+
+        let raw_input_vec: Vec<f32> = vec![1.0, -1.0, 1.0];
+        let raw_input: Array2<f32> = Array1::from_vec(raw_input_vec).insert_axis(Axis(0));
+
+        let mut grad: Array1<f32> = rnn.backpropogate_grad(1, prev_grad, &raw_input);
+
+        grad.mapv_inplace(|x| x.round());
+
+        let ans_vec: Vec<f32> = vec![4.0, 0.0, 4.0];
+        let ans: Array1<f32> = Array1::from_vec(ans_vec);
+
+        println!("{:?}", grad);
+
+        assert_eq!(grad, ans);
+    }
+
+    #[test]
+    fn output_grad_test() {
+        let mut params: ParameterConfig = ParameterConfig::new(1, 2, 2, vec![3]);
+        let weights: WeightConfig = WeightConfig::new(0.999, 1.0, -0.01, 0.01);
+        let mut activations: ActivationConfig = ActivationConfig::new(Activation::relu(), Activation::relu());
+        let rnn: RNN = RNN::new(&mut params, weights, &mut activations);
+
+        let output: Vec<f32> = vec![0.0, 0.0];
+        let answer: Vec<f32> = vec![4.0, 2.0];
+
+        let raw_vec: Vec<f32> = vec![-1.0, 1.0];
+        let raw_output: Array2<f32> = Array1::from_vec(raw_vec).insert_axis(Axis(0));
+
+        let mut grad: Array1<f32> = rnn.get_output_grad(&output, &answer, &raw_output);
+
+        grad.mapv_inplace(|x | x.round());
+
+        let ans_vec: Vec<f32> = vec![0.0, -2.0];
+        let ans: Array1<f32> = Array1::from_vec(ans_vec);
+
+        println!("{:?}", grad);
+        assert_eq!(grad, ans);
     }
 }
