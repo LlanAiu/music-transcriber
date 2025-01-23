@@ -219,7 +219,7 @@ impl RNN {
             arr = arr.dot(&hidden_weight.get_weight_matrix());
 
             if i < self.layers {
-                let previous: Option<&Array2<f32>> = prev.get(i);
+                let previous: Option<&Array2<f32>> = prev.get(i + 1);
 
                 if previous.is_some() {
                     let recurrent_weight: &Weight = self.recurrence_weights.get(i).expect("Failed to get weights");
@@ -297,7 +297,7 @@ impl RNN {
             bias_grads.insert(0, bias);
 
             if i < self.layers {
-                let prev_activation: &Array2<f32> = prev_act.get(i)
+                let prev_activation: &Array2<f32> = prev_act.get(i + 1)
                     .expect("Failed to get previous activations");
                 let recurrence: Array2<f32> = self.compute_recurrence_grad(i, &prev_grad, prev_activation);
                 recurrence_grads.insert(0, recurrence);
@@ -531,5 +531,40 @@ mod tests {
 
         println!("{:?}", grad);
         assert_eq!(grad, ans);
+    }
+
+    #[test]
+    fn update_test() {
+        let mut params: ParameterConfig = ParameterConfig::new(2, 2, 2, vec![3, 3]);
+        let weights: WeightConfig = WeightConfig::new(0.999, 1.0, -0.01, 0.01);
+        let mut activations: ActivationConfig = ActivationConfig::new(Activation::relu(), Activation::none());
+        let mut rnn: RNN = RNN::new(&mut params, weights, &mut activations);
+
+        let mut update: Update = Update::new(params.input_size(), params.output_size(), &rnn.units_by_layer, 4);
+
+        let sample: Vec<f32> = vec![0.0, 0.0];
+        let ( _, prev_activations, _ ) = rnn.feedforward(sample.clone(), &Vec::new());
+        
+        let (
+            output, 
+            activations, 
+            raw_nodes
+        ) = rnn.feedforward(sample, &prev_activations);
+
+        println!("Finished feedforward prediction");
+
+        let answer: Vec<f32> = vec![1.0, 1.0];
+
+
+        rnn.add_update(
+            &mut update, 
+            output, 
+            &answer, 
+            &activations, 
+            &prev_activations, 
+            &raw_nodes
+        );
+
+        println!("{:?}", update);
     }
 }

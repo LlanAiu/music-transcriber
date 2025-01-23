@@ -310,6 +310,10 @@ impl ParameterConfig {
         self.output_size
     }
 
+    pub fn units_by_layer_ref(&self) -> &Vec<usize> {
+        &self.units_by_layer
+    }
+
     pub fn units_by_layer(&mut self) -> Vec<usize> {
         take(&mut self.units_by_layer)
     }
@@ -351,15 +355,15 @@ impl Update {
                 dim2 = *units_by_layer.get(i).expect("Failed to get layer dimension");
             }
 
-            let hidden: Array2<f32> = Array2::ones((dim1, dim2));
+            let hidden: Array2<f32> = Array2::zeros((dim1, dim2));
             hidden_update.push(hidden);
 
             if i != layers {
-                let recurrence: Array2<f32> = Array2::ones((dim2, dim2));
+                let recurrence: Array2<f32> = Array2::zeros((dim2, dim2));
                 recurrence_update.push(recurrence);
             }
 
-            let bias: Array1<f32> = Array1::ones(dim2);
+            let bias: Array1<f32> = Array1::zeros(dim2);
             biases_update.push(bias);
         }
 
