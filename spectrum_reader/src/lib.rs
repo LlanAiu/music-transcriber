@@ -46,4 +46,36 @@ mod tests {
 
         println!("{:#?}", output_seq);
     }
+
+    #[test]
+    pub fn convergence_test() {
+        let mut params: ParameterConfig = ParameterConfig::new(2, 5, 3, vec![6, 4]);
+        let weights: WeightConfig = WeightConfig::new(-0.2, 0.2, -0.2, 0.2);
+        let mut activations: ActivationConfig = ActivationConfig::new(Activation::none(), Activation::none());
+        let mut rnn: RNN = RNN::new(&mut params, weights, &mut activations);
+
+        let input_seq: Vec<Vec<f32>> = vec![
+            vec![1.0, 1.0, 0.0, 1.0, 1.0],
+            vec![1.0, 0.0, 0.0, 1.0, 1.0],
+            vec![1.0, 1.0, 0.0, 1.0, 0.0],
+            vec![1.0, 1.0, 1.0, 0.0, 1.0],
+            vec![1.0, 1.0, 0.0, 0.0, 0.0]
+        ];
+
+        let answer_seq: Vec<Vec<f32>> = vec![
+            vec![1.0, 0.0, 1.0],
+            vec![1.0, 0.0, 1.0],
+            vec![1.0, 0.0, 1.0],
+            vec![1.0, 1.0, 1.0],
+            vec![1.0, 0.0, 1.0]
+        ];
+
+        for _i in 0..2000 {
+            rnn.predict_and_update(input_seq.clone(), answer_seq.clone(), 1);
+        }
+
+        let ans = rnn.predict(input_seq);
+
+        println!("{:?}", ans);
+    }
 }

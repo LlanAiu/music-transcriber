@@ -2,11 +2,12 @@
 use std::fs;
 
 // external
-
 use ndarray::{Array1, Array2, ArrayView2, Axis};
 
 // internal
 use crate::types::{Activation, ActivationConfig, Bias, ParameterConfig, Update, Weight, WeightConfig};
+
+const LEARNING_RATE: f32 = 0.001;
 
 pub struct RNN {
     // p
@@ -263,7 +264,7 @@ impl RNN {
             self.add_update(&mut update, output, answer, &activations, &prev_activations, &raw);
 
             if update.should_update() {
-                self.process_update(&mut update);
+                self.process_update(&mut update, LEARNING_RATE);
             }
 
             prev_activations = activations;
@@ -297,8 +298,7 @@ impl RNN {
             bias_grads.insert(0, bias);
 
             if i < self.layers {
-                let prev_activation: &Array2<f32> = prev_act.get(i + 1)
-                    .expect("Failed to get previous activations");
+                let prev_activation: Option<&Array2<f32>> = prev_act.get(i + 1);
                 let recurrence: Array2<f32> = self.compute_recurrence_grad(i, &prev_grad, prev_activation);
                 recurrence_grads.insert(0, recurrence);
             }
@@ -355,7 +355,7 @@ impl RNN {
         prev_grad.clone()
     }
 
-    fn compute_recurrence_grad(&self, layer: usize, prev_grad: &Array1<f32>, prev_act: &Array2<f32>) -> Array2<f32> {
+    fn compute_recurrence_grad(&self, layer: usize, prev_grad: &Array1<f32>, prev_act: Option<&Array2<f32>>) -> Array2<f32> {
         if layer >= self.layers {
             panic!("Invalid layer index!");
         }
@@ -363,16 +363,21 @@ impl RNN {
         let layer_dim: usize = self.units_by_layer[layer];
         let dim: (usize, usize) = (layer_dim, layer_dim);
 
-        let grad_matrix: ArrayView2<f32> = prev_grad.view().insert_axis(Axis(0));
-        let grads: ArrayView2<f32> = grad_matrix.broadcast(dim)
-            .expect("Failed to broadcast gradient vector");
+        if prev_act.is_some() {
+            let activation: &Array2<f32> = prev_act.expect("Failed to get previous activations");
+            let grad_matrix: ArrayView2<f32> = prev_grad.view().insert_axis(Axis(0));
+            let grads: ArrayView2<f32> = grad_matrix.broadcast(dim)
+                .expect("Failed to broadcast gradient vector");
 
-        let mut recurrence_update: Array2<f32> = prev_act.view().reversed_axes().broadcast(dim)
-            .expect("Failed to broadcast previous inputs").to_owned();
+            let mut recurrence_update: Array2<f32> = activation.view().reversed_axes().broadcast(dim)
+                .expect("Failed to broadcast previous inputs").to_owned();
 
-        recurrence_update = recurrence_update * grads;
+            recurrence_update = recurrence_update * grads;
 
-        recurrence_update
+            return recurrence_update;
+        } else {
+            return Array2::zeros(dim);
+        }
     }
 
     fn backpropogate_grad(
@@ -393,21 +398,21 @@ impl RNN {
         result * input_vec
     }
 
-    fn process_update(&mut self, grad: &mut Update) {
+    fn process_update(&mut self, grad: &mut Update, alpha: f32) {
         let hidden_updates: &Vec<Array2<f32>> = grad.get_hidden_update();
         let bias_updates: &Vec<Array1<f32>> = grad.get_biases_update();
         let recurrence_updates: &Vec<Array2<f32>> = grad.get_recurrence_update();
 
         for i in 0..=self.layers {
             let hidden_update: &Array2<f32> = hidden_updates.get(i).expect("Failed to get hidden weight update");
-            self.hidden_weights[i].update(hidden_update);
+            self.hidden_weights[i].update(hidden_update, alpha);
 
             let bias_update: &Array1<f32> = bias_updates.get(i).expect("Failed to get bias update");
-            self.biases[i].update(bias_update);
+            self.biases[i].update(bias_update, alpha);
 
             if i < self.layers {
                 let recurrence_update: &Array2<f32> = recurrence_updates.get(i).expect("Failed to get recurrence update");
-                self.recurrence_weights[i].update(recurrence_update);
+                self.recurrence_weights[i].update(recurrence_update, alpha);
             }
         }
 
@@ -453,7 +458,6 @@ mod tests {
         let prev_grad: Array1<f32> = Array1::from_vec(prev_grad_vec);
 
         let gradient = rnn.compute_bias_grad(1, &prev_grad);
-    
 
         let ans_vec: Vec<f32> = vec![1.0, 2.0];
         let ans: Array1<f32> = Array1::from_vec(ans_vec);
@@ -475,7 +479,9 @@ mod tests {
         let prev_act_vec: Vec<f32> = vec![1.0, 2.0, 3.0];
         let prev_act: Array2<f32> = Array1::from_vec(prev_act_vec).insert_axis(Axis(0));
 
-        let gradient: Array2<f32> = rnn.compute_recurrence_grad(0, &prev_grad, &prev_act);
+        let act_option: Option<&Array2<f32>> = Some(&prev_act);
+
+        let gradient: Array2<f32> = rnn.compute_recurrence_grad(0, &prev_grad, act_option);
 
         let ans_vec: Vec<f32> = vec![1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0];
         let ans: Array2<f32> = Array2::from_shape_vec((3, 3), ans_vec).expect("Failed to create ans matrix");

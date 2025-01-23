@@ -54,8 +54,9 @@ impl Bias {
     //     self.array.view().insert_axis(Axis(1))
     // }
 
-    pub fn update(&mut self, update: &Array1<f32>) {
-        self.array += update;
+    pub fn update(&mut self, update: &Array1<f32>, scale: f32) {
+        let scaled: Array1<f32> = scale * update;
+        self.array -= &scaled;
     }
 }
 
@@ -117,8 +118,9 @@ impl Weight {
         self.array.view()
     }
 
-    pub fn update(&mut self, update: &Array2<f32>) {
-        self.array += update;
+    pub fn update(&mut self, update: &Array2<f32>, alpha: f32) {
+        let scaled: Array2<f32> = alpha * update;
+        self.array -= &scaled;
     }
 
     pub fn dim(&self) -> (usize, usize) {
@@ -401,6 +403,8 @@ impl Update {
         for (i, update) in biases.iter().enumerate() {
             self.biases_update[i] += update;
         }
+
+        // println!("{:?}", self);
     }
 
     pub fn get_hidden_update(&self) -> &Vec<Array2<f32>> {
