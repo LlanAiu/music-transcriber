@@ -3,10 +3,10 @@
 // external
 
 // internal
-mod types;
-mod simple_rnn;
+pub mod types;
+pub mod rnn;
 
-pub use crate::simple_rnn::RNN;
+pub use crate::rnn::RNN;
 
 
 #[cfg(test)]
