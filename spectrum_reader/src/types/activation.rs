@@ -1,7 +1,6 @@
-use std::fmt::Debug;
 // builtin
 use std::mem::replace;
-use std::sync::OnceLock;
+use std::sync::{OnceLock, RwLock};
 // use core::cell::OnceCell;
 use std::collections::HashMap;
 
@@ -11,9 +10,9 @@ use std::collections::HashMap;
 
 
 pub fn init_registry() {
-    let registry: ActivationRegistry = ActivationRegistry::init();
+    let activation_registry: ActivationRegistry = ActivationRegistry::init();
 
-    REGISTRY_INSTANCE.set(registry).unwrap();
+    REGISTRY_INSTANCE.set(RwLock::new(activation_registry)).unwrap();
 }
 
 
@@ -22,12 +21,9 @@ pub struct ActivationRegistry {
     registry: HashMap<String, Box<dyn ActivationFunction>>
 }
 
-static REGISTRY_INSTANCE: OnceLock<ActivationRegistry> = OnceLock::new();
+static REGISTRY_INSTANCE: OnceLock<RwLock<ActivationRegistry>> = OnceLock::new();
 
 impl ActivationRegistry {
-    pub fn global() -> &'static ActivationRegistry {
-        REGISTRY_INSTANCE.get().expect("Failed to get activation registry")
-    }
 
     fn init() -> ActivationRegistry {
         let hmap: HashMap<String, Box<dyn ActivationFunction>> = HashMap::new();
@@ -36,6 +32,24 @@ impl ActivationRegistry {
             registry: hmap
         }
     }
+
+    pub fn get(name: &str) -> Box<dyn ActivationFunction> {
+        let guard = REGISTRY_INSTANCE.get()
+            .expect("Tried to use registry prior to initialization")
+            .read().expect("Failed to acquire read lock on registry");
+
+        guard.registry.get(name).map(|f| {
+            f.copy()
+        }).expect("Failed to fetch activation function from registry")
+    }
+
+    pub fn register(name: &str, func: Box<dyn ActivationFunction>) {
+        let mut guard = REGISTRY_INSTANCE.get()
+            .expect("Tried to use registry prior to initialization")
+            .write().expect("Failed to acquire write lock on registry");
+
+        guard.registry.insert(name.to_string(), func);
+    }
 }
 
 
@@ -43,7 +57,10 @@ pub trait ActivationFunction: Send + Sync + Debug {
     fn of(&self, x: f32) -> f32;
     fn d_of(&self, x: f32) -> f32;
     fn name(&self) -> String;
+    fn copy(&self) -> Box<dyn ActivationFunction>;
 }
+
+
 
 pub struct Activation {
     function: Box<dyn FnMut(f32) -> f32>,
