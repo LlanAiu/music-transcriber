@@ -151,12 +151,14 @@ impl RNN {
             raw_nodes.push(arr.clone());
             
             if i < self.layers {
-                arr.mapv_inplace(self.hidden_activation.get_fn());
+                // arr.mapv_inplace(self.hidden_activation.get_fn());
+                arr.mapv_inplace(|x| self.hidden_activation.of(x));
                 activations.push(arr.clone());
             }
         }
 
-        arr.mapv_inplace(self.end_activation.get_fn());
+        // arr.mapv_inplace(self.end_activation.get_fn());
+        arr.mapv_inplace(|x| self.end_activation.of(x));
 
         let output: Vec<f32> = arr.remove_axis(Axis(0)).to_vec();
         

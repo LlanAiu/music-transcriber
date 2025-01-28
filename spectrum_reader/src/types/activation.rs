@@ -1,4 +1,5 @@
 // builtin
+use std::fmt::Debug;
 use std::mem::replace;
 use std::sync::{OnceLock, RwLock};
 // use core::cell::OnceCell;
@@ -63,13 +64,13 @@ pub trait ActivationFunction: Send + Sync + Debug {
 
 
 pub struct Activation {
-    function: Box<dyn FnMut(f32) -> f32>,
+    function: Box<dyn ActivationFunction>,
     name: String,
 }
 
 impl Activation {
     pub fn sigmoid() -> Activation {
-        let function: Box<dyn FnMut(f32) -> f32> = Box::new(|x: f32| 1.0 / (1.0 + (-x).exp()));
+        let function: Box<dyn ActivationFunction> = Box::new(Sigmoid);
         
         Activation {
             function,
@@ -78,7 +79,7 @@ impl Activation {
     }
 
     pub fn relu() -> Activation {
-        let function: Box<dyn FnMut(f32) -> f32> = Box::new(|x: f32| x.max(0.0));
+        let function: Box<dyn ActivationFunction> = Box::new(ReLU);
 
         Activation {
             function,
@@ -90,46 +91,28 @@ impl Activation {
         Activation::default()
     }
 
+    pub fn from_function(func: Box<dyn ActivationFunction>) -> Activation {
+        Activation {
+            name: func.name(),
+            function: func
+        }
+    }
+
     pub fn from_string(s: &str) -> Activation {
-        match s {
-            "sigmoid" => { Activation::sigmoid() },
-            "relu" => { Activation::relu() },
-            _ => { Default::default() }
+        let function: Box<dyn ActivationFunction> = ActivationRegistry::get(s);
+
+        Activation {
+            function,
+            name: s.to_string()
         }
     }
 
-    pub fn of(&mut self, x: f32) -> f32 {
-        (self.function)(x)
+    pub fn of(&self, x: f32) -> f32 {
+        self.function.of(x)
     }
 
-    pub fn get_fn(&mut self) -> Box<dyn FnMut(f32) -> f32> {
-        let function: Box<dyn FnMut(f32) -> f32>;
-        if self.name() == "sigmoid" {
-            function = Box::new(|x: f32| 1.0 / (1.0 + (-x).exp()));
-        } else if self.name() == "relu" {
-            function = Box::new(|x: f32| x.max(0.0));
-        } else {
-            function = Box::new(|x: f32| x);
-        }
-        replace(&mut self.function, function)
-    }
-
-    pub fn get_deriv(&self) -> Box<dyn FnMut(f32) -> f32> {
-        let function: Box<dyn FnMut(f32) -> f32>; 
-        if self.name() == "sigmoid" {
-            function = Box::new(|x: f32| ((-x).exp()) / ((1.0 + (-x).exp()).powi(2)));
-        } else if self.name() == "relu" {
-            function = Box::new(|x: f32| {
-                if x > 0.0 {
-                    return 1.0;
-                } else {
-                    return 0.0;
-                }
-            });
-        } else {
-            function = Box::new(|_x: f32| 1.0);
-        }
-        function
+    pub fn deriv_of(&self, x: f32) -> f32 {
+        self.function.d_of(x)
     }
 
     pub fn name(&self) -> &str {
@@ -139,9 +122,88 @@ impl Activation {
 
 impl Default for Activation {
     fn default() -> Self {
-        Self { 
-            function: Box::new(|x: f32| x),
-            name: "none".to_string()
+        Activation::from_function(Box::new(None))
+    }
+}
+
+pub struct ReLU;
+
+impl ActivationFunction for ReLU {
+    fn of(&self, x: f32) -> f32 {
+        x.max(0.0)
+    }
+
+    fn d_of(&self, x: f32) -> f32 {
+        if x > 0.0 {
+            return 1.0;
+        } else {
+            return 0.0;
         }
+    }
+
+    fn name(&self) -> String {
+        "relu".to_string()
+    }
+
+    fn copy(&self) -> Box<dyn ActivationFunction> {
+        Box::new(ReLU)
+    }
+}
+
+impl Debug for ReLU {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ReLU").finish()
+    }
+}
+
+pub struct Sigmoid;
+
+impl ActivationFunction for Sigmoid {
+    fn of(&self, x: f32) -> f32 {
+        1.0 / (1.0 + (-x).exp())
+    }
+
+    fn d_of(&self, x: f32) -> f32 {
+        ((-x).exp()) / ((1.0 + (-x).exp()).powi(2))
+    }
+
+    fn name(&self) -> String {
+        "sigmoid".to_string()
+    }
+
+    fn copy(&self) -> Box<dyn ActivationFunction> {
+        Box::new(Sigmoid)
+    }
+}
+
+impl Debug for Sigmoid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Sigmoid").finish()
+    }
+}
+
+pub struct None;
+
+impl ActivationFunction for None {
+    fn of(&self, x: f32) -> f32 {
+        x
+    }
+
+    fn d_of(&self, x: f32) -> f32 {
+        1.0
+    }
+
+    fn name(&self) -> String {
+        "none".to_string()
+    }
+
+    fn copy(&self) -> Box<dyn ActivationFunction> {
+        Box::new(None)
+    }
+}
+
+impl Debug for None {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("None").finish()
     }
 }

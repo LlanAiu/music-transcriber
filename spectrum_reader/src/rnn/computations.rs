@@ -17,7 +17,8 @@ pub fn compute_output_grad(output: &Vec<f32>, answer: &Vec<f32>, raw: &Array2<f3
 
     let loss: Array1<f32> = Array1::from_vec(loss_vec);
     let mut scale: Array1<f32> = raw.clone().remove_axis(Axis(0));
-    scale.mapv_inplace(end_actf.get_deriv());
+    // scale.mapv_inplace(end_actf.get_deriv());
+    scale.mapv_inplace(|x| end_actf.deriv_of(x));
     scale *= -1.0;
 
     loss * scale
@@ -69,7 +70,8 @@ pub fn compute_backpropogated_grad(
     raw_input: &Array2<f32>,
 ) -> Array1<f32> {
     let mut input_vec: Array1<f32> = raw_input.view().remove_axis(Axis(0)).to_owned();
-    input_vec.mapv_inplace(hidden_actf.get_deriv());
+    // input_vec.mapv_inplace(hidden_actf.get_deriv());
+    input_vec.mapv_inplace(|x| hidden_actf.deriv_of(x));
 
     let weights: ArrayView2<f32> = hidden_layer_weights.get_weight_matrix();
     let grads: Array2<f32> = prev_grad.insert_axis(Axis(1));
