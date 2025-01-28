@@ -14,6 +14,11 @@ pub fn init_registry() {
     let activation_registry: ActivationRegistry = ActivationRegistry::init();
 
     REGISTRY_INSTANCE.set(RwLock::new(activation_registry)).unwrap();
+
+    ActivationRegistry::register("none", Box::new(None));
+    ActivationRegistry::register("sigmoid", Box::new(Sigmoid));
+    ActivationRegistry::register("relu", Box::new(ReLU));
+
 }
 
 
