@@ -3,23 +3,35 @@
 // external
 use plotters::prelude::*;
 use cqt_rs::{CQTParams, Cqt};
+use constants::*;
 
 // internal
 use crate::pcm::PCMBuffer;
 
+pub mod constants {
+    pub const MIN_FREQ: f32 = 27.5;
+    pub const MAX_FREQ: f32 = 4200.0;
+    pub const BINS_PER_OCTAVE: usize = 12;
+    pub const SAMPLE_RATE: usize = 44100;
+    pub const WINDOW_LENGTH: usize = 2048;
+    pub const HOP_SIZE: usize = 512;
+    pub const TIME_STEP: f32 = (HOP_SIZE as f32) / (SAMPLE_RATE as f32);
+}
 
 pub fn pcm_to_spectrograph(pcm: PCMBuffer) -> Spectrograph {
     let params: CQTParams = CQTParams::new(
-        27.5, // Min frequency
-        4200.0, // Max frequency
-        12, // Number of bins
-        44100, // Sampling rate
-        2048 // Window length
+        MIN_FREQ,
+        MAX_FREQ,
+        BINS_PER_OCTAVE,
+        SAMPLE_RATE,
+        WINDOW_LENGTH
     ).expect("Error creating CQTParams");
+    
+    println!("Number of bins: {}", params.num_bins());
 
     let cqt: Cqt = Cqt::new(params);
 
-    let hop_size: usize = 512; // timestep of 512/44100 
+    let hop_size: usize = HOP_SIZE;
 
     let cqt_features = cqt.process(&pcm.samples, hop_size)
         .expect("Error computing CQT");
@@ -41,6 +53,14 @@ pub struct Spectrograph {
 }
 
 impl Spectrograph {
+    pub fn vector_dim(&self) -> usize {
+        if self.num_timestamps() > 0 {
+            self.graph[0].len()
+        } else {
+            0
+        }
+    }
+
     pub fn find_max_frequency(&self) -> Vec<(usize, f32, f32)> {
         self.graph
             .iter()

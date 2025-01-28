@@ -1,6 +1,5 @@
 // builtin
 use std::fmt::Debug;
-use std::mem::replace;
 use std::sync::{OnceLock, RwLock};
 // use core::cell::OnceCell;
 use std::collections::HashMap;
@@ -11,14 +10,15 @@ use std::collections::HashMap;
 
 
 pub fn init_registry() {
-    let activation_registry: ActivationRegistry = ActivationRegistry::init();
+    if REGISTRY_INSTANCE.get().is_none() {
+        let activation_registry: ActivationRegistry = ActivationRegistry::init();
 
-    REGISTRY_INSTANCE.set(RwLock::new(activation_registry)).unwrap();
-
-    ActivationRegistry::register("none", Box::new(None));
-    ActivationRegistry::register("sigmoid", Box::new(Sigmoid));
-    ActivationRegistry::register("relu", Box::new(ReLU));
-
+        REGISTRY_INSTANCE.set(RwLock::new(activation_registry)).unwrap();
+    
+        ActivationRegistry::register("none", Box::new(None));
+        ActivationRegistry::register("sigmoid", Box::new(Sigmoid));
+        ActivationRegistry::register("relu", Box::new(ReLU));
+    }
 }
 
 
@@ -194,7 +194,7 @@ impl ActivationFunction for None {
         x
     }
 
-    fn d_of(&self, x: f32) -> f32 {
+    fn d_of(&self, _x: f32) -> f32 {
         1.0
     }
 

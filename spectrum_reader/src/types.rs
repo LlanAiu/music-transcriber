@@ -7,6 +7,7 @@ use std::mem::take;
 pub mod activation;
 pub use activation::Activation;
 
+
 pub struct WeightConfig {
     min_weight: f32,
     max_weight: f32,

@@ -4,7 +4,7 @@ use std::mem::take;
 // external
 
 // internal
-use crate::constants::ENCODING_LENGTH;
+pub use crate::constants::ENCODING_LENGTH;
 
 
 

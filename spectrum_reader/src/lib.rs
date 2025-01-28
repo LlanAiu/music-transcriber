@@ -4,7 +4,8 @@
 
 // internal
 pub mod types;
-pub mod rnn;
+mod rnn;
+mod converter;
 
 pub use crate::rnn::RNN;
 
@@ -13,10 +14,13 @@ pub use crate::rnn::RNN;
 mod tests {
     use types::{Activation, ActivationConfig, ParameterConfig, WeightConfig};
 
+    use crate::types::activation::init_registry;
+
     use super::*;
 
     #[test]
     pub fn construct_test() {
+        init_registry();
         let mut params: ParameterConfig = ParameterConfig::new(1, 10, 2, vec![5]);
         let weights: WeightConfig = WeightConfig::new(-0.3, 0.3, -0.3, 0.3);
         let mut activations: ActivationConfig = ActivationConfig::new(Activation::relu(), Activation::sigmoid());
@@ -26,12 +30,14 @@ mod tests {
 
     #[test]
     pub fn save_load_test() {
+        init_registry();
         let rnn: RNN = RNN::from_save("./tests/weights.txt");
         rnn.save_to_file("./tests/identical_weights.txt");
     }
 
     #[test]
     pub fn predict_test() {
+        init_registry();
         let mut params: ParameterConfig = ParameterConfig::new(1, 10, 2, vec![5]);
         let weights: WeightConfig = WeightConfig::new(0.999, 1.0, -0.01, 0.01);
         let mut activations: ActivationConfig = ActivationConfig::new(Activation::none(), Activation::none());
@@ -49,6 +55,7 @@ mod tests {
 
     #[test]
     pub fn convergence_test() {
+        init_registry();
         let mut params: ParameterConfig = ParameterConfig::new(2, 5, 3, vec![6, 4]);
         let weights: WeightConfig = WeightConfig::new(-0.2, 0.2, -0.2, 0.2);
         let mut activations: ActivationConfig = ActivationConfig::new(Activation::none(), Activation::none());

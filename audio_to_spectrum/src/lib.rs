@@ -39,6 +39,7 @@ mod tests {
         let path: String = String::from("./tests/Happy_bday.mp3");
         let image: String = String::from("./tests/spectrographs/Happy_bday_image.png");
         let spectrograph: Spectrograph = audio_to_spectrograph(&path);
+        println!("Vector length: {}", spectrograph.vector_dim());
         let _ = spectrograph.generate_heatmap(&image).expect("Failed to generate heatmap");
     }
 
@@ -47,6 +48,7 @@ mod tests {
         let path: String = String::from("./tests/K331_15s.mp3");
         let image: String = String::from("./tests/spectrographs/K331_15s_image.png");
         let spectrograph: Spectrograph = audio_to_spectrograph(&path);
+        println!("Vector length: {}", spectrograph.vector_dim());
         let _ = spectrograph.generate_heatmap(&image).expect("Failed to generate heatmap");
     }
 

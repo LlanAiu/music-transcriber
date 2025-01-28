@@ -105,6 +105,14 @@ impl RNN {
         save_to_file(self, file_path);
     }
 
+    pub fn input_dim(&self) -> usize {
+        self.input_size
+    }
+
+    pub fn output_dim(&self) -> usize {
+        self.output_size
+    }
+
     pub fn predict(&mut self, seq: Vec<Vec<f32>>) -> Vec<Vec<f32>> {
         let mut output_seq: Vec<Vec<f32>> = Vec::new();
         let mut prev_activations: Vec<Array2<f32>> = Vec::new();
@@ -301,10 +309,13 @@ impl RNN {
 
 #[cfg(test)]
 mod tests {
+    use crate::types::activation::init_registry;
+
     use super::*;
 
     #[test]
     fn update_test() {
+        init_registry();
         let mut params: ParameterConfig = ParameterConfig::new(2, 2, 2, vec![3, 3]);
         let weights: WeightConfig = WeightConfig::new(0.999, 1.0, -0.01, 0.01);
         let mut activations: ActivationConfig = ActivationConfig::new(Activation::relu(), Activation::none());
