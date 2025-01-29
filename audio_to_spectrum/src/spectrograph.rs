@@ -1,5 +1,7 @@
 // builtin
 
+use std::mem::take;
+
 // external
 use plotters::prelude::*;
 use cqt_rs::{CQTParams, Cqt};
@@ -43,13 +45,15 @@ pub fn pcm_to_spectrograph(pcm: PCMBuffer) -> Spectrograph {
 
     Spectrograph { 
         graph: spectrograph, 
-        frequency_ratio: 1.0595 
+        frequency_ratio: 1.0595,
+        timestep_ms: TIME_STEP
     }
 }
 
 pub struct Spectrograph {
     graph: Vec<Vec<f32>>,
     frequency_ratio: f32,
+    timestep_ms: f32
 }
 
 impl Spectrograph {
@@ -76,8 +80,16 @@ impl Spectrograph {
         &self.graph
     }
 
+    pub fn graph(&mut self) -> Vec<Vec<f32>> {
+        take(&mut self.graph)
+    }
+
     pub fn num_timestamps(&self) -> usize {
         self.graph.len()
+    }
+
+    pub fn get_timestep(&self) -> f32 {
+        self.timestep_ms
     }
 
     pub fn generate_heatmap(&self, filename: &str) -> Result<(), Box<dyn std::error::Error>> {

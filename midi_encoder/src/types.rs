@@ -66,6 +66,18 @@ impl MIDIEncoding {
         MIDIEncoding {timestep_ms, encoding}
     }
 
+    pub fn from_vector(output_vecs: Vec<Vec<f32>>, timestep_ms: f32) -> MIDIEncoding {
+    
+        let mut chords: Vec<Chord> = Vec::new();
+    
+        for vec in output_vecs.iter() {
+            let chord = Chord::from_vec(vec);
+            chords.push(chord);
+        }
+    
+        MIDIEncoding::new(timestep_ms, chords)
+    }
+
     pub fn get_timestep(&self) -> f32 {
         self.timestep_ms
     }

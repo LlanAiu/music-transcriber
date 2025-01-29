@@ -11,7 +11,9 @@ use crate::{rnn::RNN, types::{activation::init_registry, ActivationConfig, Param
 
 
 pub trait Translate {
-    fn translate_spectrum(spectrum: Spectrograph) -> MIDIEncoding;
+    fn translate_spectrum(&mut self, spectrum: Spectrograph) -> MIDIEncoding;
+
+    fn update(&mut self, spectrum: Spectrograph, encoding: MIDIEncoding);
 }
 
 pub struct RNNConverter {
@@ -69,7 +71,15 @@ impl RNNConverter {
 }
 
 impl Translate for RNNConverter {
-    fn translate_spectrum(spectrum: Spectrograph) -> MIDIEncoding {
-        todo!()
+    fn translate_spectrum(&mut self, mut spectrum: Spectrograph) -> MIDIEncoding {
+        let timestep_ms: f32 = spectrum.get_timestep();
+        let freq_seq: Vec<Vec<f32>> = spectrum.graph();
+        let output_seq: Vec<Vec<f32>> = self.rnn.predict(freq_seq);
+
+        MIDIEncoding::from_vector(output_seq, timestep_ms)
     }
+    
+    fn update(&mut self, spectrum: Spectrograph, encoding: MIDIEncoding) {
+        todo!()
+    }    
 }
