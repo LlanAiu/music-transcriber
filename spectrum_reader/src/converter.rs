@@ -17,13 +17,15 @@ pub trait Translate {
 }
 
 pub struct RNNConverter {
-    rnn: RNN
+    rnn: RNN,
+    batch: usize
 }
 
 impl RNNConverter {
     pub fn new(
         layers: usize,
         units_by_layer: Vec<usize>,
+        batch: usize,
         weights: WeightConfig, 
         mut activations: ActivationConfig
     ) -> RNNConverter {
@@ -46,11 +48,12 @@ impl RNNConverter {
         let rnn: RNN = RNN::new(&mut params, weights, &mut activations);
 
         RNNConverter {
-            rnn
+            rnn,
+            batch
         }
     }
 
-    pub fn from_file(path: &str) -> RNNConverter {
+    pub fn from_file(path: &str, batch: usize) -> RNNConverter {
         let rnn: RNN = RNN::from_save(path);
 
         let input_size: usize = (
@@ -65,7 +68,8 @@ impl RNNConverter {
         }
 
         RNNConverter {
-            rnn
+            rnn,
+            batch
         }
     }
 }
@@ -79,7 +83,12 @@ impl Translate for RNNConverter {
         MIDIEncoding::from_vector(output_seq, timestep_ms)
     }
     
-    fn update(&mut self, spectrum: Spectrograph, encoding: MIDIEncoding) {
-        todo!()
+    fn update(&mut self, mut spectrum: Spectrograph, encoding: MIDIEncoding) {
+        let seq: Vec<Vec<f32>> = spectrum.graph();
+        let output_seq: Vec<Vec<f32>> = encoding.get_encoding().iter().map(|chord| {
+            chord.get_encoding()
+        }).collect();
+
+        self.rnn.predict_and_update(seq, &output_seq, self.batch);
     }    
 }

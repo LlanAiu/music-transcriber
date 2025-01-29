@@ -179,7 +179,7 @@ impl RNN {
         (output, activations, raw_nodes)
     }
 
-    pub fn predict_and_update(&mut self, seq: Vec<Vec<f32>>, ans: Vec<Vec<f32>>, batch: usize) {
+    pub fn predict_and_update(&mut self, seq: Vec<Vec<f32>>, ans: &Vec<Vec<f32>>, batch: usize) {
         let mut prev_activations: Vec<Array2<f32>> = Vec::new();
         let mut update: Update = Update::new(self.input_size, self.output_size, &self.units_by_layer, batch);
 

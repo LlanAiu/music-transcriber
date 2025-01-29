@@ -31,6 +31,7 @@ mod tests {
     #[test]
     pub fn save_load_test() {
         init_registry();
+        init_registry();
         let rnn: RNN = RNN::from_save("./tests/weights.txt");
         rnn.save_to_file("./tests/identical_weights.txt");
     }
@@ -78,7 +79,7 @@ mod tests {
         ];
 
         for _i in 0..2000 {
-            rnn.predict_and_update(input_seq.clone(), answer_seq.clone(), 1);
+            rnn.predict_and_update(input_seq.clone(), &answer_seq, 1);
         }
 
         let ans = rnn.predict(input_seq);
