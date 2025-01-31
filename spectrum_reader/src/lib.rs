@@ -57,32 +57,73 @@ mod tests {
     #[test]
     pub fn convergence_test() {
         init_registry();
-        let mut params: ParameterConfig = ParameterConfig::new(2, 5, 3, vec![6, 4]);
-        let weights: WeightConfig = WeightConfig::new(-0.2, 0.2, -0.2, 0.2);
+        let mut params: ParameterConfig = ParameterConfig::new(2, 5, 3, vec![4, 2]);
+        let weights: WeightConfig = WeightConfig::new(-0.05, 0.05, -0.05, 0.05);
         let mut activations: ActivationConfig = ActivationConfig::new(Activation::none(), Activation::none());
         let mut rnn: RNN = RNN::new(&mut params, weights, &mut activations);
 
         let input_seq: Vec<Vec<f32>> = vec![
-            vec![1.0, 1.0, 0.0, 1.0, 1.0],
-            vec![1.0, 0.0, 0.0, 1.0, 1.0],
-            vec![1.0, 1.0, 0.0, 1.0, 0.0],
-            vec![1.0, 1.0, 1.0, 0.0, 1.0],
-            vec![1.0, 1.0, 0.0, 0.0, 0.0]
+            vec![1.0, 1.0, 0.0, 0.0, 1.0],
+            vec![1.0, 1.0, 0.0, 0.0, 1.0],
+            vec![1.0, 1.0, 0.0, 0.0, 1.0],
+            vec![1.0, 1.0, 0.0, 0.0, 1.0],
+            vec![1.0, 1.0, 0.0, 0.0, 1.0]
         ];
 
         let answer_seq: Vec<Vec<f32>> = vec![
             vec![1.0, 0.0, 1.0],
             vec![1.0, 0.0, 1.0],
             vec![1.0, 0.0, 1.0],
-            vec![1.0, 1.0, 1.0],
+            vec![1.0, 0.0, 1.0],
             vec![1.0, 0.0, 1.0]
         ];
 
-        for _i in 0..2000 {
-            rnn.predict_and_update(input_seq.clone(), &answer_seq, 1);
+        for _i in 0..1000 {
+            rnn.predict_and_update(input_seq.clone(), &answer_seq, 3);
         }
 
         let ans = rnn.predict(input_seq);
+
+        println!("{:?}", ans);
+    }
+
+    #[test]
+    fn quadratic_interpolation_test() {
+        init_registry();
+        let mut params: ParameterConfig = ParameterConfig::new(1, 1, 1, vec![4]);
+        let weights: WeightConfig = WeightConfig::new(0.01, 0.05, 0.000, 0.001);
+        let mut activations: ActivationConfig = ActivationConfig::new(Activation::relu(), Activation::none());
+        let mut rnn: RNN = RNN::new(&mut params, weights, &mut activations);
+
+        let input_seq: Vec<Vec<f32>> = vec![
+            vec![1.0],
+            vec![2.0],
+            vec![3.0],
+            vec![4.0],
+            vec![5.0]
+        ];
+
+        let answer_seq: Vec<Vec<f32>> = vec![
+            vec![1.0],
+            vec![4.0],
+            vec![9.0],
+            vec![16.0],
+            vec![25.0]
+        ];
+
+        for _i in 0..1000 {
+            rnn.predict_and_update(input_seq.clone(), &answer_seq, 5);
+        }
+
+        let test_seq: Vec<Vec<f32>> = vec![
+            vec![1.5],
+            vec![2.5],
+            vec![3.5],
+            vec![4.5],
+            vec![5.5]
+        ];
+
+        let ans = rnn.predict(test_seq);
 
         println!("{:?}", ans);
     }
