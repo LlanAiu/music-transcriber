@@ -7,7 +7,7 @@ use crate::types::{AddNoteResult, Chord, EncodingData, MIDIEncoding, Note, NoteE
 
 
 // just betting nobody can hit the same note twice in one timestep...
-pub fn encode(data: EncodingData) -> MIDIEncoding {
+pub fn encode(mut data: EncodingData) -> MIDIEncoding {
     let timestep_ms: f32 = data.get_timestep();
     let events: Vec<NoteEvent> = data.get_events();
 
@@ -17,6 +17,14 @@ pub fn encode(data: EncodingData) -> MIDIEncoding {
     let next: &mut Chord = &mut Chord::none();
 
     for event in events {
+        if !data.continue_sampling(event.get_timestamp()) {
+            while time <= (data.time_limit_ms() as f32) {
+                encoding.push(Chord::none());
+                time += timestep_ms;
+            }
+            break;
+        }
+
         let same_timestep: bool = (event.get_timestamp() as f32 - time) < timestep_ms;
 
         if same_timestep {

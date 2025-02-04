@@ -50,6 +50,7 @@ pub fn pcm_to_spectrograph(pcm: PCMBuffer) -> Spectrograph {
     }
 }
 
+#[derive(Clone)]
 pub struct Spectrograph {
     graph: Vec<Vec<f32>>,
     frequency_ratio: f32,

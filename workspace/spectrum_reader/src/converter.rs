@@ -7,11 +7,11 @@
 use audio_to_spectrum::spectrograph::{constants, Spectrograph};
 use midi_encoder::types::{MIDIEncoding, ENCODING_LENGTH};
 
-use crate::{rnn::RNN, types::{activation::init_registry, ActivationConfig, ParameterConfig, WeightConfig}};
+use crate::{rnn::RNN, types::{activation::init_registry, ActivationConfig, ConverterConfig, ParameterConfig, WeightConfig}};
 
 
 pub trait Translate {
-    fn translate_spectrum(&mut self, spectrum: Spectrograph) -> MIDIEncoding;
+    fn translate_spectrum(&mut self, spectrum: Spectrograph, cutoff: f32) -> MIDIEncoding;
 
     fn update(&mut self, spectrum: Spectrograph, encoding: MIDIEncoding);
 }
@@ -23,9 +23,7 @@ pub struct RNNConverter {
 
 impl RNNConverter {
     pub fn new(
-        layers: usize,
-        units_by_layer: Vec<usize>,
-        batch: usize,
+        mut config: ConverterConfig,
         weights: WeightConfig, 
         mut activations: ActivationConfig
     ) -> RNNConverter {
@@ -39,13 +37,15 @@ impl RNNConverter {
         let output_size: usize = ENCODING_LENGTH;
 
         let mut params: ParameterConfig = ParameterConfig::new(
-            layers, 
+            config.layers(), 
             input_size, 
             output_size, 
-            units_by_layer
+            config.units_by_layer()
         );
         
         let rnn: RNN = RNN::new(&mut params, weights, &mut activations);
+
+        let batch: usize = config.batch_size();
 
         RNNConverter {
             rnn,
@@ -75,12 +75,12 @@ impl RNNConverter {
 }
 
 impl Translate for RNNConverter {
-    fn translate_spectrum(&mut self, mut spectrum: Spectrograph) -> MIDIEncoding {
+    fn translate_spectrum(&mut self, mut spectrum: Spectrograph, cutoff: f32) -> MIDIEncoding {
         let timestep_ms: f32 = spectrum.get_timestep();
         let freq_seq: Vec<Vec<f32>> = spectrum.graph();
         let output_seq: Vec<Vec<f32>> = self.rnn.predict(freq_seq);
 
-        MIDIEncoding::from_vector(output_seq, timestep_ms)
+        MIDIEncoding::from_vector(output_seq, timestep_ms, cutoff)
     }
     
     fn update(&mut self, mut spectrum: Spectrograph, encoding: MIDIEncoding) {

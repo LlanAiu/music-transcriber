@@ -18,17 +18,27 @@ use symphonia::core::{
 pub struct AudioConfig<'a> {
     file: File,
     extension: &'a str,
+    should_limit: bool,
+    max_limit: usize,
 }
 
 impl<'a> AudioConfig<'a> {
-    //don't get lifetime tbh
     pub fn new(file_path: &str) -> AudioConfig {
         let file: File = File::open(file_path).expect("Failed to open file!");
         let extension = Path::new(file_path)
             .extension()
             .and_then(OsStr::to_str)
             .expect("Invalid file type!");
-        AudioConfig { file, extension }
+        AudioConfig { file, extension, should_limit: false, max_limit: 0 }
+    }
+
+    pub fn with_limit(file_path: &str, sample_limit: usize) -> AudioConfig {
+        let file: File = File::open(file_path).expect("Failed to open file!");
+        let extension = Path::new(file_path)
+            .extension()
+            .and_then(OsStr::to_str)
+            .expect("Invalid file type!");
+        AudioConfig { file, extension, should_limit: true, max_limit: sample_limit }
     }
 }
 
@@ -69,11 +79,16 @@ pub fn audio_to_pcm(cfg: AudioConfig) -> PCMBuffer {
 
     let track_id = track.id;
 
-    loop {
+    let mut continue_sampling: bool = if cfg.should_limit {
+        samples.len() < cfg.max_limit
+    } else {
+        true
+    };
+
+    while continue_sampling {
         let packet = match format.next_packet() {
             Ok(packet) => packet,
             Err(Error::IoError(_)) => {
-                // Handle end of stream error and exit the loop
                 break;
             }
             Err(err) => {
@@ -97,9 +112,7 @@ pub fn audio_to_pcm(cfg: AudioConfig) -> PCMBuffer {
                             samples.push(sample);
                         }
                     }
-                    _ => {
-                        // Handle other buffer types if necessary
-                    }
+                    _ => {}
                 }
             }
             Err(Error::IoError(_)) => {
@@ -112,6 +125,12 @@ pub fn audio_to_pcm(cfg: AudioConfig) -> PCMBuffer {
                 panic!("{}", err);
             }
         }
+
+        continue_sampling = if cfg.should_limit {
+            samples.len() < cfg.max_limit
+        } else {
+            true
+        };
     }
 
     PCMBuffer { samples }

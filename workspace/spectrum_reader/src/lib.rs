@@ -7,14 +7,17 @@ pub mod types;
 mod rnn;
 mod converter;
 
+pub use crate::converter::RNNConverter;
 pub use crate::rnn::RNN;
 
 
 #[cfg(test)]
 mod tests {
+    use audio_to_spectrum::{get_sample_spectrograph, spectrograph::Spectrograph};
+    use midi_encoder::{get_sample_encoding, types::MIDIEncoding};
     use types::{Activation, ActivationConfig, ParameterConfig, WeightConfig};
 
-    use crate::types::activation::init_registry;
+    use crate::{converter::Translate, types::{activation::init_registry, ConverterConfig}};
 
     use super::*;
 
@@ -126,5 +129,23 @@ mod tests {
         let ans = rnn.predict(test_seq);
 
         println!("{:?}", ans);
+    }
+
+    #[test]
+    fn actual_data_test() {
+        let config: ConverterConfig = ConverterConfig::new(2, vec![50, 20], 24);
+        let weights: WeightConfig = WeightConfig::new(0.01, 0.05, 0.000, 0.001);
+        let activations: ActivationConfig = ActivationConfig::new(Activation::relu(), Activation::sigmoid());
+        
+        let mut converter: RNNConverter = RNNConverter::new(config, weights, activations);
+        
+        let graph: Spectrograph = get_sample_spectrograph("./tests/Data_test.mp3", 5.0);
+        let encoding: MIDIEncoding = get_sample_encoding("./tests/Data_test.midi", 5.0);
+
+        for _i in 1..10 {
+            converter.update(graph.clone(), encoding.clone());
+        }
+
+        let output: MIDIEncoding = converter.translate_spectrum(graph, 0.8);
     }
 }

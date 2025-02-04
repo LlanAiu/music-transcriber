@@ -55,7 +55,7 @@ impl NoteEvent {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MIDIEncoding {
     timestep_ms: f32,
     encoding: Vec<Chord>,
@@ -66,12 +66,12 @@ impl MIDIEncoding {
         MIDIEncoding {timestep_ms, encoding}
     }
 
-    pub fn from_vector(output_vecs: Vec<Vec<f32>>, timestep_ms: f32) -> MIDIEncoding {
+    pub fn from_vector(output_vecs: Vec<Vec<f32>>, timestep_ms: f32, cutoff: f32) -> MIDIEncoding {
     
         let mut chords: Vec<Chord> = Vec::new();
     
         for vec in output_vecs.iter() {
-            let chord = Chord::from_vec(vec);
+            let chord = Chord::from_vec(vec, cutoff);
             chords.push(chord);
         }
     
@@ -93,20 +93,38 @@ impl MIDIEncoding {
 
 pub struct EncodingData {
     events: Vec<NoteEvent>,
-    timestep_ms: f32
+    timestep_ms: f32, 
+    has_limit: bool,
+    time_limit_ms: usize,
 }
 
 impl EncodingData {
     pub fn new(events: Vec<NoteEvent>, timestep_ms: f32) -> EncodingData {
-        EncodingData {events, timestep_ms}
+        EncodingData {events, timestep_ms, has_limit: false, time_limit_ms: 0}
+    }
+    
+    pub fn with_limit(events: Vec<NoteEvent>, timestep_ms: f32, limit_ms: usize) -> EncodingData {
+        EncodingData {events, timestep_ms, has_limit: true, time_limit_ms: limit_ms}
     }
 
-    pub fn get_events(self) -> Vec<NoteEvent> {
-        self.events
+    pub fn get_events(&mut self) -> Vec<NoteEvent> {
+        take(&mut self.events)
     }
 
     pub fn get_timestep(&self) -> f32 {
         self.timestep_ms
+    }
+
+    pub fn continue_sampling(&self, timestep_ms: u32) -> bool {
+        if self.has_limit {
+            (timestep_ms as usize) <= self.time_limit_ms
+        } else {
+            true
+        }
+    }
+
+    pub fn time_limit_ms(&self) -> usize {
+        self.time_limit_ms
     }
 }
 
@@ -134,7 +152,7 @@ impl Chord {
         }
     }
 
-    pub fn from_vec(v: &Vec<f32>) -> Chord {
+    pub fn from_vec(v: &Vec<f32>, cutoff: f32) -> Chord {
         if v.len() != ENCODING_LENGTH {
             panic!("Not a valid note encoding");
         }
@@ -145,9 +163,9 @@ impl Chord {
             if i % 2 != 1 {
                 continue;
             }
-            if v[i] == 1.0 {
+            if v[i] >= cutoff {
                 let key: u8 = Chord::key_of(i);
-                let note: Note = Note::new(key, v[i - 1] == 1.0);
+                let note: Note = Note::new(key, v[i - 1] >= cutoff);
                 notes.push(note);
             }
         }
