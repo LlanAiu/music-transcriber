@@ -16,7 +16,6 @@ pub fn audio_to_spectrograph(file_path: &str) -> Spectrograph {
 
 pub fn get_sample_spectrograph(file_path: &str, len_sec: f32) -> Spectrograph {
     let samples: usize = (44100.0 * len_sec).floor() as usize;
-    println!("Samples: {}", samples);
     let pcm: PCMBuffer = audio_to_pcm(
         AudioConfig::with_limit(file_path, samples));
     pcm_to_spectrograph(pcm)
@@ -68,7 +67,7 @@ mod tests {
 
     #[test]
     fn sample_data_test() {
-        let spectrograph: Spectrograph = get_sample_spectrograph("./tests/Data_test.mp3", 5.0);
+        let spectrograph: Spectrograph = get_sample_spectrograph("./tests/Data_test.mp3", 3.0);
         println!("Vectors: {}", spectrograph.num_timestamps());
     }
 }

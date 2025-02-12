@@ -18,7 +18,7 @@ pub fn encode(mut data: EncodingData) -> MIDIEncoding {
 
     for event in events {
         if !data.continue_sampling(event.get_timestamp()) {
-            while time <= (data.time_limit_ms() as f32) {
+            while time + timestep_ms <= (data.time_limit_ms() as f32) {
                 encoding.push(Chord::none());
                 time += timestep_ms;
             }

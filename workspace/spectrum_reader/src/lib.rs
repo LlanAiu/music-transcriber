@@ -17,7 +17,7 @@ mod tests {
     use midi_encoder::{get_sample_encoding, types::MIDIEncoding};
     use types::{Activation, ActivationConfig, ParameterConfig, WeightConfig};
 
-    use crate::{converter::Translate, types::{activation::init_registry, ConverterConfig}};
+    use crate::{converter::Translator, types::{activation::init_registry, ConverterConfig}};
 
     use super::*;
 
@@ -132,20 +132,24 @@ mod tests {
     }
 
     #[test]
-    fn actual_data_test() {
-        let config: ConverterConfig = ConverterConfig::new(2, vec![50, 20], 24);
+    fn new_data_test() {
+        let config: ConverterConfig = ConverterConfig::new(2, vec![50, 20], 12);
         let weights: WeightConfig = WeightConfig::new(0.01, 0.05, 0.000, 0.001);
         let activations: ActivationConfig = ActivationConfig::new(Activation::relu(), Activation::sigmoid());
         
         let mut converter: RNNConverter = RNNConverter::new(config, weights, activations);
         
-        let graph: Spectrograph = get_sample_spectrograph("./tests/Data_test.mp3", 5.0);
-        let encoding: MIDIEncoding = get_sample_encoding("./tests/Data_test.midi", 5.0);
+        let graph: Spectrograph = get_sample_spectrograph("./tests/Data_test.mp3", 3.0);
+        let encoding: MIDIEncoding = get_sample_encoding("./tests/Data_test.midi", 2.99);
 
-        for _i in 1..10 {
+        for _i in 1..100 {
             converter.update(graph.clone(), encoding.clone());
         }
 
-        let output: MIDIEncoding = converter.translate_spectrum(graph, 0.8);
+        let output: MIDIEncoding = converter.translate_spectrum(graph, 0.7);
+
+        converter.save("./tests/converter_weights.txt");
+
+        println!("{}", output.print());
     }
 }

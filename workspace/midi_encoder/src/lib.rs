@@ -71,8 +71,9 @@ mod tests {
 
     #[test]
     fn sample_data_test() {
-        let midi: MIDIEncoding = get_sample_encoding("./tests/Data_Test.midi", 5.0);
+        let midi: MIDIEncoding = get_sample_encoding("./tests/Data_Test.midi", 2.99);
         println!("Number of Encodings: {}", midi.len());
+        println!("{}", midi.print());
     }
 
 }

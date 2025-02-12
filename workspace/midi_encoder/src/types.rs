@@ -89,6 +89,21 @@ impl MIDIEncoding {
     pub fn len(&self) -> usize {
         self.encoding.len()
     }
+
+    pub fn print(&self) -> String {
+        let mut result = String::new();
+        for (i, chord) in self.encoding.iter().enumerate() {
+            if !chord.is_none() {
+                result.push_str(&format!("Timestep: {} ms, Chord: {:?}\n", i as f32 * self.timestep_ms, chord));
+            }
+        }
+
+        if result.is_empty() {
+            return "Empty Encoding".to_string();
+        }
+
+        result
+    }
 }
 
 pub struct EncodingData {
@@ -160,6 +175,9 @@ impl Chord {
         let mut notes: Vec<Note> = Vec::new();
     
         for i in 1..v.len() {
+            if v[i].is_nan() {
+                panic!("Cannot make chord from NaN!");
+            }
             if i % 2 != 1 {
                 continue;
             }

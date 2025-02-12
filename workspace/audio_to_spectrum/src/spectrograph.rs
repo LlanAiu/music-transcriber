@@ -28,8 +28,6 @@ pub fn pcm_to_spectrograph(pcm: PCMBuffer) -> Spectrograph {
         SAMPLE_RATE,
         WINDOW_LENGTH
     ).expect("Error creating CQTParams");
-    
-    println!("Number of bins: {}", params.num_bins());
 
     let cqt: Cqt = Cqt::new(params);
 

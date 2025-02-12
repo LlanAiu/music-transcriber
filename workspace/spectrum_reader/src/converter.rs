@@ -10,7 +10,7 @@ use midi_encoder::types::{MIDIEncoding, ENCODING_LENGTH};
 use crate::{rnn::RNN, types::{activation::init_registry, ActivationConfig, ConverterConfig, ParameterConfig, WeightConfig}};
 
 
-pub trait Translate {
+pub trait Translator {
     fn translate_spectrum(&mut self, spectrum: Spectrograph, cutoff: f32) -> MIDIEncoding;
 
     fn update(&mut self, spectrum: Spectrograph, encoding: MIDIEncoding);
@@ -72,9 +72,13 @@ impl RNNConverter {
             batch
         }
     }
+
+    pub fn save(&self, path: &str) {
+        self.rnn.save_to_file(path);
+    }
 }
 
-impl Translate for RNNConverter {
+impl Translator for RNNConverter {
     fn translate_spectrum(&mut self, mut spectrum: Spectrograph, cutoff: f32) -> MIDIEncoding {
         let timestep_ms: f32 = spectrum.get_timestep();
         let freq_seq: Vec<Vec<f32>> = spectrum.graph();
