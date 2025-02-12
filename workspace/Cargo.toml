@@ -5,6 +5,7 @@ members = [
     "audio_to_spectrum", 
     "midi_encoder",
     "spectrum_reader",
+    "models",
 ]
 
 resolver = "2"

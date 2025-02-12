@@ -92,7 +92,6 @@ mod tests {
 
     #[test]
     fn quadratic_interpolation_test() {
-        init_registry();
         let mut params: ParameterConfig = ParameterConfig::new(1, 1, 1, vec![4]);
         let weights: WeightConfig = WeightConfig::new(0.01, 0.05, 0.000, 0.001);
         let mut activations: ActivationConfig = ActivationConfig::new(Activation::relu(), Activation::none());
