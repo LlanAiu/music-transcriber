@@ -106,5 +106,7 @@ pub fn save_to_file(rnn: &RNN, file_path: &str) {
     file_content.push_str(rnn.end_activation.name());
     file_content.push('\n');
 
+    println!("Writing to file...");
+
     fs::write(file_path, file_content).expect("Failed to write to file");
 }

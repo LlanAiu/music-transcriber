@@ -18,6 +18,7 @@ pub mod constants {
     pub const WINDOW_LENGTH: usize = 2048;
     pub const HOP_SIZE: usize = 512;
     pub const TIME_STEP: f32 = (HOP_SIZE as f32) / (SAMPLE_RATE as f32);
+    pub const DEADBAND: f32 = 0.01;
 }
 
 pub fn pcm_to_spectrograph(pcm: PCMBuffer) -> Spectrograph {
@@ -38,7 +39,10 @@ pub fn pcm_to_spectrograph(pcm: PCMBuffer) -> Spectrograph {
 
     let max_value = cqt_features.iter().cloned().fold(0./0., f32::max);
     let spectrograph: Vec<Vec<f32>> = cqt_features.outer_iter()
-        .map(|timestep| timestep.iter().map(|&val| val / max_value).collect())
+        .map(|timestep| timestep.iter().map(|&val| {
+            let normalized_val = val / max_value;
+            if normalized_val < DEADBAND { 0.0 } else { normalized_val }
+        }).collect())
         .collect();
 
     Spectrograph { 

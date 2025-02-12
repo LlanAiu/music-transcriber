@@ -13,7 +13,7 @@ use types::*;
 use crate::types::*;
 
 
-const LEARNING_RATE: f32 = 0.001;
+const LEARNING_RATE: f32 = 0.01;
 
 pub struct RNN {
     // p
@@ -286,6 +286,8 @@ impl RNN {
     }
 
     fn process_update(&mut self, grad: &mut Update, alpha: f32) {
+        println!("Updating weights with norm: {}", grad.get_norm());
+
         let hidden_updates: &Vec<Array2<f32>> = grad.get_hidden_update();
         let bias_updates: &Vec<Array1<f32>> = grad.get_biases_update();
         let recurrence_updates: &Vec<Array2<f32>> = grad.get_recurrence_update();

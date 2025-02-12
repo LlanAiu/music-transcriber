@@ -238,6 +238,22 @@ impl Update {
         &self.biases_update
     }
 
+    pub fn get_norm(&self) -> f32 {
+        let hidden_norm: f32 = self.hidden_update.iter()
+            .map(|arr| arr.iter().map(|&x| x * x).sum::<f32>())
+            .sum::<f32>();
+
+        let recurrence_norm: f32 = self.recurrence_update.iter()
+            .map(|arr| arr.iter().map(|&x| x * x).sum::<f32>())
+            .sum::<f32>();
+
+        let biases_norm: f32 = self.biases_update.iter()
+            .map(|arr| arr.iter().map(|&x| x * x).sum::<f32>())
+            .sum::<f32>();
+
+        (hidden_norm + recurrence_norm + biases_norm).sqrt()
+    }
+
     pub fn clear(&mut self) {
         self.hidden_update.iter_mut().for_each(|arr| {
             arr.map_inplace(|a| {

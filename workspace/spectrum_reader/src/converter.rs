@@ -93,6 +93,8 @@ impl Translator for RNNConverter {
             chord.get_encoding()
         }).collect();
 
+        println!("{:?}",seq[0]);
+
         self.rnn.predict_and_update(seq, &output_seq, self.batch);
     }    
 }
