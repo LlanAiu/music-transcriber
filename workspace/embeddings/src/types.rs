@@ -5,6 +5,15 @@
 // internal
 
 
+#[derive(Debug)]
 pub struct Embedding {
-    // TODO
+    embedding: Vec<Vec<f32>>
+}
+
+impl Embedding {
+    pub fn new(data: Vec<Vec<f32>>) -> Embedding {
+        Embedding {
+            embedding: data
+        }
+    }
 }

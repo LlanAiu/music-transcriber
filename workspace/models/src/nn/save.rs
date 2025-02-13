@@ -1,5 +1,6 @@
 // builtin 
 use std::fs;
+use std::error::Error;
 // external
 
 // internal
@@ -8,18 +9,15 @@ use crate::networks::activation::Activation;
 use crate::networks::types::{Bias, Weight};
 
 
-pub fn from_save(file_path: &str) -> NN {
-    let s: String = fs::read_to_string(file_path).expect("Failed to read save file");
+pub fn from_save(file_path: &str) -> Result<NN, Box<dyn Error>> {
+    let s: String = fs::read_to_string(file_path)?;
     let mut lines = s.lines();
 
-    let layers: usize = lines.next().expect("Failed to get next line")
-        .parse().expect("Failed to parse layers");
+    let layers: usize = lines.next().expect("Failed to get next line").parse()?;
 
-    let input_size: usize = lines.next().expect("Failed to get next line")
-        .parse().expect("Failed to parse input size");
+    let input_size: usize = lines.next().expect("Failed to get next line").parse()?;
     
-    let output_size: usize = lines.next().expect("Failed to get next line")
-        .parse().expect("Failed to parse output size");
+    let output_size: usize = lines.next().expect("Failed to get next line").parse()?;
 
     let units_by_layer: Vec<usize> = lines.next().expect("Failed to get next line")
         .split(',')
@@ -43,7 +41,7 @@ pub fn from_save(file_path: &str) -> NN {
     let hidden_activation: Activation = Activation::from_string(lines.next().expect("Failed to get next line"));
     let end_activation: Activation = Activation::from_string(lines.next().expect("Failed to get next line"));
 
-    NN {
+    Result::Ok(NN {
         layers,
         input_size,
         output_size,
@@ -52,7 +50,7 @@ pub fn from_save(file_path: &str) -> NN {
         biases,
         hidden_activation,
         end_activation
-    }
+    })
 }
 
 

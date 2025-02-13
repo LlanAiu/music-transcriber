@@ -1,4 +1,5 @@
 // builtin
+use std::error::Error;
 
 // external
 use ndarray::{Array1, Array2, Axis};
@@ -86,7 +87,7 @@ impl NN {
         }
     }
 
-    pub fn from_save(file_path: &str) -> NN {
+    pub fn from_save(file_path: &str) -> Result<NN, Box<dyn Error>> {
         from_save(file_path)
     }
 
