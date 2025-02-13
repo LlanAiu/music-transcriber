@@ -5,7 +5,7 @@
 // internal
 mod nn;
 mod rnn;
-mod networks;
+pub mod networks;
 
 pub use nn::NN;
 pub use rnn::RNN;

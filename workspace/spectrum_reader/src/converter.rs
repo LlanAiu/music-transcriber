@@ -3,18 +3,13 @@
 // external
 
 // internal
-
 use audio_to_spectrum::spectrograph::{constants, Spectrograph};
 use midi_encoder::types::{MIDIEncoding, ENCODING_LENGTH};
+use models::RNN;
+use models::networks::configs::*;
+use models::networks::activation::init_registry;
+use crate::types::{ConverterConfig, Translator};
 
-use crate::{rnn::RNN, types::{activation::init_registry, ActivationConfig, ConverterConfig, ParameterConfig, WeightConfig}};
-
-
-pub trait Translator {
-    fn translate_spectrum(&mut self, spectrum: Spectrograph, cutoff: f32) -> MIDIEncoding;
-
-    fn update(&mut self, spectrum: Spectrograph, encoding: MIDIEncoding);
-}
 
 pub struct RNNConverter {
     rnn: RNN,
