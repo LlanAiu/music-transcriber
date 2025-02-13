@@ -4,7 +4,9 @@
 
 // internal
 use ndarray::{Array1, Array2, ArrayView2, Axis};
-use super::{Activation, Weight};
+use super::activation::Activation;
+use super::types::Weight;
+
 
 
 pub fn compute_output_grad(output: &Vec<f32>, answer: &Vec<f32>, raw: &Array2<f32>, end_actf: &Activation) -> Array1<f32> {

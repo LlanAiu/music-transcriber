@@ -1,16 +1,15 @@
 // builtin
 
-use computations::{compute_backpropogated_grad, compute_bias_grad, compute_hidden_grad, compute_output_grad, compute_recurrence_grad};
 // external
 use ndarray::{Array1, Array2, Axis};
 
 // internal
-mod types;
 mod save;
-mod computations;
 use save::{from_save, save_to_file};
-use types::*;
-use crate::types::*;
+use crate::networks::activation::Activation;
+use crate::networks::types::{Bias, RecurrentUpdate, Weight};
+use crate::networks::configs::{ActivationConfig, WeightConfig, ParameterConfig};
+use crate::networks::computations::*;
 
 
 const LEARNING_RATE: f32 = 0.001;
@@ -181,7 +180,7 @@ impl RNN {
 
     pub fn predict_and_update(&mut self, seq: Vec<Vec<f32>>, ans: &Vec<Vec<f32>>, batch: usize) {
         let mut prev_activations: Vec<Array2<f32>> = Vec::new();
-        let mut update: Update = Update::new(self.input_size, self.output_size, &self.units_by_layer, batch);
+        let mut update: RecurrentUpdate = RecurrentUpdate::new(self.input_size, self.output_size, &self.units_by_layer, batch);
 
         for (i, arr) in seq.into_iter().enumerate() {
             let (output, activations, raw) = self.feedforward(arr, &prev_activations);
@@ -197,7 +196,7 @@ impl RNN {
     }
 
     fn add_update(&self,
-        grad: &mut Update,
+        grad: &mut RecurrentUpdate,
         output: Vec<f32>, 
         answer: &Vec<f32>, 
         act: &Vec<Array2<f32>>, 
@@ -285,7 +284,7 @@ impl RNN {
         )
     }
 
-    fn process_update(&mut self, grad: &mut Update, alpha: f32) {
+    fn process_update(&mut self, grad: &mut RecurrentUpdate, alpha: f32) {
         println!("Updating weights with norm: {}", grad.get_norm());
 
         let hidden_updates: &Vec<Array2<f32>> = grad.get_hidden_update();
@@ -311,7 +310,7 @@ impl RNN {
 
 #[cfg(test)]
 mod tests {
-    use crate::types::activation::init_registry;
+    use crate::networks::activation::init_registry;
 
     use super::*;
 
@@ -323,7 +322,7 @@ mod tests {
         let mut activations: ActivationConfig = ActivationConfig::new(Activation::relu(), Activation::none());
         let mut rnn: RNN = RNN::new(&mut params, weights, &mut activations);
 
-        let mut update: Update = Update::new(params.input_size(), params.output_size(), &rnn.units_by_layer, 4);
+        let mut update: RecurrentUpdate = RecurrentUpdate::new(params.input_size(), params.output_size(), &rnn.units_by_layer, 4);
 
         let sample: Vec<f32> = vec![0.0, 0.0];
         let ( _, prev_activations, _ ) = rnn.feedforward(sample.clone(), &Vec::new());

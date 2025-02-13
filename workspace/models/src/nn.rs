@@ -1,17 +1,18 @@
 // builtin
 
-use computations::{compute_backpropogated_grad, compute_bias_grad, compute_hidden_grad, compute_output_grad, compute_recurrence_grad};
 // external
 use ndarray::{Array1, Array2, Axis};
 
 // internal
-mod types;
-mod computations;
-use types::*;
-use crate::types::*;
+mod save;
+use save::{from_save, save_to_file};
+use crate::networks::activation::Activation;
+use crate::networks::types::{Bias, Update, Weight};
+use crate::networks::configs::{ActivationConfig, WeightConfig, ParameterConfig};
+use crate::networks::computations::*;
 
 
-const LEARNING_RATE: f32 = 0.01;
+const LEARNING_RATE: f32 = 0.001;
 
 pub struct NN {
     // p
@@ -83,6 +84,14 @@ impl NN {
             hidden_activation: activations.get_hidden(),
             end_activation: activations.get_end()
         }
+    }
+
+    pub fn from_save(file_path: &str) -> NN {
+        from_save(file_path)
+    }
+
+    pub fn save_to_file(&self, file_path: &str) {
+        save_to_file(self, file_path);
     }
 
     pub fn input_dim(&self) -> usize {
@@ -248,7 +257,7 @@ impl NN {
 
 #[cfg(test)]
 mod tests {
-    use crate::types::activation::init_registry;
+    use crate::networks::activation::init_registry;
 
     use super::*;
 

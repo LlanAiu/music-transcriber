@@ -247,3 +247,136 @@ impl Update {
         });
     }
 }
+
+#[derive(Debug)]
+pub struct RecurrentUpdate {
+    batch_count: usize,
+    max_batch_size: usize,
+    hidden_update: Vec<Array2<f32>>,
+    recurrence_update: Vec<Array2<f32>>,
+    biases_update: Vec<Array1<f32>>
+}
+
+impl RecurrentUpdate {
+    pub fn new(
+        input_size: usize, 
+        output_size: usize, 
+        units_by_layer: &Vec<usize>, 
+        max_batch_size: usize
+    ) -> RecurrentUpdate {
+        let layers: usize = units_by_layer.len();
+        let mut hidden_update: Vec<Array2<f32>> = Vec::with_capacity(layers + 1);
+        let mut recurrence_update: Vec<Array2<f32>> = Vec::with_capacity(layers);
+        let mut biases_update: Vec<Array1<f32>> = Vec::with_capacity(layers + 1);
+
+        for i in 0..=layers {
+            let dim1: usize;
+            let dim2: usize;
+
+            if i == 0 {
+                dim1 = input_size;
+                dim2 = *units_by_layer.get(i).expect("Failed to get layer dimension");
+            } else if i == layers {
+                dim1 = *units_by_layer.get(i - 1).expect("Failed to get layer dimension");
+                dim2 = output_size;
+            } else {
+                dim1 = *units_by_layer.get(i - 1).expect("Failed to get layer dimension");
+                dim2 = *units_by_layer.get(i).expect("Failed to get layer dimension");
+            }
+
+            let hidden: Array2<f32> = Array2::zeros((dim1, dim2));
+            hidden_update.push(hidden);
+
+            if i != layers {
+                let recurrence: Array2<f32> = Array2::zeros((dim2, dim2));
+                recurrence_update.push(recurrence);
+            }
+
+            let bias: Array1<f32> = Array1::zeros(dim2);
+            biases_update.push(bias);
+        }
+
+        RecurrentUpdate {
+            batch_count: 0,
+            max_batch_size,
+            hidden_update,
+            recurrence_update,
+            biases_update
+        }
+    }
+
+    pub fn should_update(&self) -> bool {
+        self.batch_count >= self.max_batch_size
+    }
+
+    pub fn combine_update(&mut self, hidden: Vec<Array2<f32>>, recurrence: Vec<Array2<f32>>, biases: Vec<Array1<f32>>) {
+        self.batch_count += 1;
+
+        if hidden.len() != self.hidden_update.len() || 
+            recurrence.len() != self.recurrence_update.len() ||
+            biases.len() != self.biases_update.len() 
+        {
+            panic!("Dimension mismatch between existing and new updates");
+        }
+
+        for (i, update) in hidden.iter().enumerate() {
+            self.hidden_update[i] += update;
+        }
+
+        for (i, update) in recurrence.iter().enumerate() {
+            self.recurrence_update[i] += update;
+        }
+
+        for (i, update) in biases.iter().enumerate() {
+            self.biases_update[i] += update;
+        }
+    }
+
+    pub fn get_hidden_update(&self) -> &Vec<Array2<f32>> {
+        &self.hidden_update
+    }
+
+    pub fn get_recurrence_update(&self) -> &Vec<Array2<f32>> {
+        &self.recurrence_update
+    }
+
+    pub fn get_biases_update(&self) -> &Vec<Array1<f32>> {
+        &self.biases_update
+    }
+
+    pub fn get_norm(&self) -> f32 {
+        let hidden_norm: f32 = self.hidden_update.iter()
+            .map(|arr| arr.iter().map(|&x| x * x).sum::<f32>())
+            .sum::<f32>();
+
+        let recurrence_norm: f32 = self.recurrence_update.iter()
+            .map(|arr| arr.iter().map(|&x| x * x).sum::<f32>())
+            .sum::<f32>();
+
+        let biases_norm: f32 = self.biases_update.iter()
+            .map(|arr| arr.iter().map(|&x| x * x).sum::<f32>())
+            .sum::<f32>();
+
+        (hidden_norm + recurrence_norm + biases_norm).sqrt()
+    }
+
+    pub fn clear(&mut self) {
+        self.hidden_update.iter_mut().for_each(|arr| {
+            arr.map_inplace(|a| {
+                *a = 0.0;
+            });
+        });
+
+        self.biases_update.iter_mut().for_each(|arr| {
+            arr.map_inplace(|a| {
+                *a = 0.0;
+            });
+        });
+        
+        self.recurrence_update.iter_mut().for_each(|arr| {
+            arr.map_inplace(|a| {
+                *a = 0.0;
+            });
+        });
+    }
+}

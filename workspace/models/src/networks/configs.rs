@@ -4,8 +4,7 @@ use std::mem::take;
 // external
 
 // internal
-pub mod activation;
-pub use activation::Activation;
+use super::activation::Activation;
 
 
 pub struct WeightConfig {
