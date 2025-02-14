@@ -6,3 +6,5 @@ edition = "2021"
 [dependencies]
 models = { path = "../models" }
 midi_encoder = { path = "../midi_encoder" }
+ndarray = "0.16.0"
+ndarray-rand = "0.15.0"
