@@ -55,6 +55,7 @@ impl NoteEvent {
     }
 }
 
+//TODO: change this implementation to be event based rather than time based,
 #[derive(Debug, Clone)]
 pub struct MIDIEncoding {
     timestep_ms: f32,

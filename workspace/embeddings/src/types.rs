@@ -4,6 +4,8 @@
 
 // internal
 
+use std::mem::take;
+
 
 #[derive(Debug)]
 pub struct Embedding {
@@ -15,5 +17,9 @@ impl Embedding {
         Embedding {
             embedding: data
         }
+    }
+
+    pub fn get_embedding(&mut self) -> Vec<Vec<f32>> {
+        take(&mut self.embedding)
     }
 }

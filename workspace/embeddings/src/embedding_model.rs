@@ -66,12 +66,25 @@ impl EmbeddingModel {
         self.nn.predict_and_update(averaged_vecs, &encoded_vecs, self.batch);
     }
 
-    pub fn get_embedding(encoding: MIDIEncoding) -> Embedding {
-        todo!()
+    pub fn get_embedding(&mut self, encoding: MIDIEncoding) -> Embedding {
+        let encoded_vecs: Vec<Vec<f32>> = encoding
+        .get_encoding()
+        .iter()
+        .map(|c| c.get_encoding())
+        .collect();
+
+        let output_vecs: Vec<Vec<f32>> = self.nn.predict_first_layer(encoded_vecs);
+
+        Embedding::new(output_vecs)
     }
 
-    pub fn get_encoding(embedding: Embedding) -> MIDIEncoding {
-        todo!()
+    //will prob need to change this to remove timestep.
+    pub fn get_encoding(&mut self, mut embedding: Embedding, timestep: f32) -> MIDIEncoding {
+        let embedding_vecs: Vec<Vec<f32>> = embedding.get_embedding();
+
+        let output_vecs: Vec<Vec<f32>> = self.nn.first_layer_input(embedding_vecs);
+
+        MIDIEncoding::from_vector(output_vecs, timestep, 0.8)
     }
 
     fn get_window_average(&self, slice: &[Vec<f32>]) -> Vec<f32> {

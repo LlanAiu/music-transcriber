@@ -114,6 +114,28 @@ impl NN {
         output_seq
     }
 
+    pub fn predict_first_layer(&mut self, seq: Vec<Vec<f32>>) -> Vec<Vec<f32>> {
+        let mut output_seq: Vec<Vec<f32>> = Vec::new();
+
+        for  arr in seq {
+            let output: Vec<f32> = self.ff_single_layer(arr);
+            output_seq.push(output);
+        }
+
+        output_seq
+    }
+
+    pub fn first_layer_input(&mut self, seq: Vec<Vec<f32>>) -> Vec<Vec<f32>> {
+        let mut output_seq: Vec<Vec<f32>> = Vec::new();
+
+        for arr in seq {
+            let output: Vec<f32> = self.ff_from_first(arr);
+            output_seq.push(output);
+        }
+
+        output_seq
+    }
+
     fn feedforward(&mut self, v: Vec<f32>) -> (Vec<f32>, Vec<Array2<f32>>, Vec<Array2<f32>>) {
         if v.len() != self.input_size {
             panic!("Invalid input size");
@@ -152,6 +174,48 @@ impl NN {
         - raw_nodes - input + pre-activation node values for all hidden layers + output
          */
         (output, activations, raw_nodes)
+    }
+
+    fn ff_single_layer(&mut self, v: Vec<f32>) -> Vec<f32> {
+        if v.len() != self.input_size {
+            panic!("Invalid input size!");
+        }
+
+        let mut arr: Array2<f32> = Array1::from_vec(v).insert_axis(Axis(0));
+
+        let hidden_weight: &Weight = self.hidden_weights.get(0).expect("Failed to get hidden weight");
+        arr = arr.dot(&hidden_weight.get_weight_matrix());
+
+        let bias: &Bias = self.biases.get(0).expect("Failed to get bias");
+        arr = arr + bias.get_row_vector();
+
+        arr.mapv_inplace(|x | self.hidden_activation.of(x));
+
+        arr.remove_axis(Axis(0)).to_vec()
+    }
+
+    fn ff_from_first(&mut self, v: Vec<f32>) -> Vec<f32> {
+        if v.len() != self.input_size {
+            panic!("Invalid input size");
+        } 
+
+        let mut arr: Array2<f32> = Array1::from_vec(v).insert_axis(Axis(0));
+
+        for i in 1..=self.layers {
+            let hidden_weight: &Weight = self.hidden_weights.get(i).expect("Failed to get weight");
+            arr = arr.dot(&hidden_weight.get_weight_matrix());
+
+            let bias: &Bias = self.biases.get(i).expect("Failed to get bias");
+            arr = arr + bias.get_row_vector();
+            
+            if i < self.layers {
+                arr.mapv_inplace(|x| self.hidden_activation.of(x));
+            }
+        }
+
+        arr.mapv_inplace(|x| self.end_activation.of(x));
+
+        arr.remove_axis(Axis(0)).to_vec()
     }
 
     pub fn predict_and_update(&mut self, seq: Vec<Vec<f32>>, ans: &Vec<Vec<f32>>, batch: usize) {
