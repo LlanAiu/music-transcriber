@@ -10,16 +10,17 @@ pub fn encode(mut data: EncodingData) -> MIDIEncoding {
 
     let mut time: f32 = 0.0;
     let mut encoding: Vec<Chord> = Vec::new();
-    let chord: &mut Chord = &mut Chord::start();
+    encoding.push(Chord::start());
+    let chord: &mut Chord = &mut Chord::none();
 
     for event in events {
         let time_delta = event.get_time_delta();
         time += time_delta;
-        if !data.continue_sampling((time * 1000.0).ceil() as u32) {
+        if !data.continue_sampling(time.ceil() as u32) {
             break;
         }
 
-        let same_timestep: bool = event.get_time_delta() == 0.0 && time > 0.0;
+        let same_timestep: bool = event.get_time_delta() == 0.0;
 
         if same_timestep {
             match chord.try_add(event.get_note(), time_delta) {
@@ -29,7 +30,9 @@ pub fn encode(mut data: EncodingData) -> MIDIEncoding {
                 AddNoteResult::Ok => {}
             }
         } else {
-            encoding.push(chord.clone());
+            if !chord.is_none() {
+                encoding.push(chord.clone());
+            }
             chord.reset();
             chord.try_add(event.get_note(), time_delta);
         }
@@ -79,9 +82,8 @@ mod tests {
         let events: Vec<NoteEvent> = parse_midi("./tests/Double_Note_Test.mid");
         let data: EncodingData = EncodingData::new(events);
         let midi: MIDIEncoding = encode(data);
-        println!("{}", midi.get_encoding().len());
         for (i, vector) in midi.get_encoding().iter().enumerate() {
-            println!("Timestep {i}: {:?}", vector);
+            println!("Chord {i}: {:?}", vector);
         }
     }
 

@@ -38,14 +38,14 @@ mod tests {
     fn simple_midi_test() {
         let midi: MIDIEncoding = generate_midi_encoding("./tests/Timing_Test.mid");
 
-        println! {"{:#?}", midi};
+        println! {"{:?}", midi};
     }
 
     #[test]
     fn complex_midi_test() {
         let midi: MIDIEncoding = generate_midi_encoding("./tests/Double_Note_Test.mid");
 
-        println!("{:#?}", midi);
+        println!("{:?}", midi);
     }
 
     #[test]

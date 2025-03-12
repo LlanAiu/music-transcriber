@@ -28,20 +28,20 @@ impl Note {
 
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub struct NoteEvent {
-    time_delta_s: f32,
+    time_delta_ms: f32,
     note: Note,
 }
 
 impl NoteEvent {
-    pub fn new(time_delta_s: f32, key: u8, note_on: bool) -> NoteEvent {
+    pub fn new(time_delta_ms: f32, key: u8, note_on: bool) -> NoteEvent {
         NoteEvent {
-            time_delta_s,
+            time_delta_ms,
             note: Note::new(key, note_on),
         }
     }
 
     pub fn get_time_delta(&self) -> f32 {
-        self.time_delta_s
+        self.time_delta_ms
     }
 
     pub fn get_note_ref(&self) -> &Note {

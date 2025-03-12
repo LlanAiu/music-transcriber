@@ -20,9 +20,12 @@ pub fn parse_midi(file_path: &str) -> Vec<NoteEvent> {
     let mut tempo = 500_000; //in microseconds per beat
     let mut events = Vec::new();
 
+    let mut last_time_ms: f32 = 0.0;
+    let mut time_ms: f32 = 0.0;
+
     for track in smf.tracks {
         for event in track {
-            let tick_delta: u32 = event.delta.as_int() as u32;
+            time_ms += ticks_to_ms(event.delta.as_int() as u32, tempo as f64, tpq as f64);
 
             if let TrackEventKind::Meta(midly::MetaMessage::Tempo(new_tempo)) = event.kind {
                 tempo = new_tempo.as_int();
@@ -33,19 +36,20 @@ pub fn parse_midi(file_path: &str) -> Vec<NoteEvent> {
                 message,
             } = event.kind
             {
-                let time_delta_s: f32 =
-                    (tick_delta as f64 * tempo as f64 / tpq as f64 / 1_000_000.0) as f32;
-
                 match message {
                     midly::MidiMessage::NoteOn { key, vel } => {
+                        let time_delta = (time_ms - last_time_ms) as f32;
+                        last_time_ms = time_ms;
                         if vel.as_int() == 0 {
-                            events.push(NoteEvent::new(time_delta_s, key.as_int(), false));
+                            events.push(NoteEvent::new(time_delta, key.as_int(), false));
                         } else {
-                            events.push(NoteEvent::new(time_delta_s, key.as_int(), true));
+                            events.push(NoteEvent::new(time_delta, key.as_int(), true));
                         }
                     }
                     midly::MidiMessage::NoteOff { key, vel: _ } => {
-                        events.push(NoteEvent::new(time_delta_s, key.as_int(), false));
+                        let time_delta = (time_ms - last_time_ms) as f32;
+                        last_time_ms = time_ms;
+                        events.push(NoteEvent::new(time_delta, key.as_int(), false));
                     }
                     _ => {}
                 }
@@ -59,8 +63,8 @@ pub fn parse_midi(file_path: &str) -> Vec<NoteEvent> {
 pub fn write_midi(events: &Vec<NoteEvent>, file_path: &str) {
     let mut track = Track::new();
 
-    let tempo = 500_000; // microseconds
-    let tpq = 480;
+    let tempo: u32 = 500_000; // microseconds
+    let tpq: u16 = 480;
 
     track.push(TrackEvent {
         delta: u28::new(0),
@@ -68,8 +72,7 @@ pub fn write_midi(events: &Vec<NoteEvent>, file_path: &str) {
     });
 
     for event in events {
-        let tick_delta: u32 =
-            (event.get_time_delta() as f64 * tpq as f64 * 1_000_000.0 / tempo as f64) as u32;
+        let tick_delta: u32 = ms_to_ticks(event.get_time_delta(), tempo as f64, tpq as f64);
 
         let delta: u28 = u28::from(tick_delta);
         let kind = if event.get_note_ref().is_note_on() {
@@ -107,6 +110,14 @@ pub fn write_midi(events: &Vec<NoteEvent>, file_path: &str) {
     std::fs::write(file_path, buffer).expect("Failed to write MIDI file");
 }
 
+fn ticks_to_ms(ticks: u32, tempo: f64, tpq: f64) -> f32 {
+    (ticks as f64 * tempo / tpq / 1_000.0) as f32
+}
+
+fn ms_to_ticks(ms: f32, tempo: f64, tpq: f64) -> u32 {
+    (ms as f64 * tpq * 1_000.0 / tempo) as u32
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -121,7 +132,15 @@ mod tests {
     #[test]
     fn training_data_test() {
         let events: Vec<NoteEvent> = parse_midi("./tests/Data_Test.midi");
-        let events_head: Vec<NoteEvent> = events.iter().take(20).cloned().collect();
+        let events_head: Vec<NoteEvent> = events.iter().take(100).cloned().collect();
+        println!("{:#?}", events_head);
+        assert!(!events.is_empty());
+    }
+
+    #[test]
+    fn written_data_test() {
+        let events: Vec<NoteEvent> = parse_midi("./tests/output/Data_test.mid");
+        let events_head: Vec<NoteEvent> = events.iter().take(100).cloned().collect();
         println!("{:#?}", events_head);
         assert!(!events.is_empty());
     }
@@ -130,5 +149,17 @@ mod tests {
     fn test_write_midi() {
         let events: Vec<NoteEvent> = parse_midi("./tests/Timing_Test.mid");
         write_midi(&events, "./tests/output/C_only.mid");
+    }
+
+    #[test]
+    fn test_write_midi_complex() {
+        let events: Vec<NoteEvent> = parse_midi("./tests/Double_Note_Test.mid");
+        write_midi(&events, "./tests/output/Double_note.mid");
+    }
+
+    #[test]
+    fn test_write_midi_data() {
+        let events: Vec<NoteEvent> = parse_midi("./tests/Data_Test.midi");
+        write_midi(&events, "./tests/output/Data_test.mid");
     }
 }
