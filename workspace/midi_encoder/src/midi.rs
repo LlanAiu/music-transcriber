@@ -1,11 +1,12 @@
 // builtin
 
 // external
-use midly::{Smf, Header, Track, Timing, TrackEvent, TrackEventKind, MidiMessage, MetaMessage, num::*};
+use midly::{
+    num::*, Header, MetaMessage, MidiMessage, Smf, Timing, Track, TrackEvent, TrackEventKind,
+};
 
 // internal
 use crate::types::NoteEvent;
-
 
 pub fn parse_midi(file_path: &str) -> Vec<NoteEvent> {
     let data = std::fs::read(file_path).expect("Failed to read MIDI file");
@@ -17,12 +18,11 @@ pub fn parse_midi(file_path: &str) -> Vec<NoteEvent> {
     };
 
     let mut tempo = 500_000; //in microseconds per beat
-    let mut current_ticks: u32 = 0;
     let mut events = Vec::new();
 
     for track in smf.tracks {
         for event in track {
-            current_ticks += event.delta.as_int() as u32;
+            let tick_delta: u32 = event.delta.as_int() as u32;
 
             if let TrackEventKind::Meta(midly::MetaMessage::Tempo(new_tempo)) = event.kind {
                 tempo = new_tempo.as_int();
@@ -33,18 +33,19 @@ pub fn parse_midi(file_path: &str) -> Vec<NoteEvent> {
                 message,
             } = event.kind
             {
-                let timestamp_ms =
-                    (current_ticks as f64 * tempo as f64 / tpq as f64 / 1_000.0) as u32;
+                let time_delta_s: f32 =
+                    (tick_delta as f64 * tempo as f64 / tpq as f64 / 1_000_000.0) as f32;
+
                 match message {
                     midly::MidiMessage::NoteOn { key, vel } => {
                         if vel.as_int() == 0 {
-                            events.push(NoteEvent::new(timestamp_ms, key.as_int(), false));
+                            events.push(NoteEvent::new(time_delta_s, key.as_int(), false));
                         } else {
-                            events.push(NoteEvent::new(timestamp_ms, key.as_int(), true));
+                            events.push(NoteEvent::new(time_delta_s, key.as_int(), true));
                         }
                     }
                     midly::MidiMessage::NoteOff { key, vel: _ } => {
-                        events.push(NoteEvent::new(timestamp_ms, key.as_int(), false));
+                        events.push(NoteEvent::new(time_delta_s, key.as_int(), false));
                     }
                     _ => {}
                 }
@@ -57,7 +58,6 @@ pub fn parse_midi(file_path: &str) -> Vec<NoteEvent> {
 
 pub fn write_midi(events: &Vec<NoteEvent>, file_path: &str) {
     let mut track = Track::new();
-    let mut last_timestamp = 0;
 
     let tempo = 500_000; // microseconds
     let tpq = 480;
@@ -68,11 +68,10 @@ pub fn write_midi(events: &Vec<NoteEvent>, file_path: &str) {
     });
 
     for event in events {
-        let timestamp_ticks = (event.get_timestamp() as f64 * tpq as f64 * 1_000.0 / tempo as f64) as u32;
-        let delta = timestamp_ticks - last_timestamp;
-        last_timestamp = timestamp_ticks;
+        let tick_delta: u32 =
+            (event.get_time_delta() as f64 * tpq as f64 * 1_000_000.0 / tempo as f64) as u32;
 
-        let delta = u28::from(delta);
+        let delta: u28 = u28::from(tick_delta);
         let kind = if event.get_note_ref().is_note_on() {
             TrackEventKind::Midi {
                 channel: u4::new(0),
@@ -91,14 +90,14 @@ pub fn write_midi(events: &Vec<NoteEvent>, file_path: &str) {
             }
         };
 
-        track.push(TrackEvent {
-            delta,
-            kind,
-        });
+        track.push(TrackEvent { delta, kind });
     }
 
     let smf = Smf {
-        header: Header::new(midly::Format::SingleTrack, midly::Timing::Metrical(u15::new(tpq))),
+        header: Header::new(
+            midly::Format::SingleTrack,
+            midly::Timing::Metrical(u15::new(tpq)),
+        ),
         tracks: vec![track],
     };
 

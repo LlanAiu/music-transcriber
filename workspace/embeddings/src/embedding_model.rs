@@ -1,6 +1,5 @@
 // builtin
 use std::cmp;
-use std::os::windows;
 
 // external
 
@@ -10,7 +9,6 @@ use midi_encoder::types::MIDIEncoding;
 use models::networks::activation::Activation;
 use models::networks::configs::{ActivationConfig, ParameterConfig, WeightConfig};
 use models::NN;
-use ndarray::Array1;
 
 pub struct EmbeddingModel {
     dim: usize,
@@ -63,15 +61,16 @@ impl EmbeddingModel {
             averaged_vecs.push(sum_vec);
         }
 
-        self.nn.predict_and_update(averaged_vecs, &encoded_vecs, self.batch);
+        self.nn
+            .predict_and_update(averaged_vecs, &encoded_vecs, self.batch);
     }
 
     pub fn get_embedding(&mut self, encoding: MIDIEncoding) -> Embedding {
         let encoded_vecs: Vec<Vec<f32>> = encoding
-        .get_encoding()
-        .iter()
-        .map(|c| c.get_encoding())
-        .collect();
+            .get_encoding()
+            .iter()
+            .map(|c| c.get_encoding())
+            .collect();
 
         let output_vecs: Vec<Vec<f32>> = self.nn.predict_first_layer(encoded_vecs);
 
@@ -79,12 +78,12 @@ impl EmbeddingModel {
     }
 
     //will prob need to change this to remove timestep.
-    pub fn get_encoding(&mut self, mut embedding: Embedding, timestep: f32) -> MIDIEncoding {
+    pub fn get_encoding(&mut self, mut embedding: Embedding) -> MIDIEncoding {
         let embedding_vecs: Vec<Vec<f32>> = embedding.get_embedding();
 
         let output_vecs: Vec<Vec<f32>> = self.nn.first_layer_input(embedding_vecs);
 
-        MIDIEncoding::from_vector(output_vecs, timestep, 0.8)
+        MIDIEncoding::from_vector(output_vecs, 0.8)
     }
 
     fn get_window_average(&self, slice: &[Vec<f32>]) -> Vec<f32> {
