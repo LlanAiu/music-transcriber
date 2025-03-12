@@ -38,7 +38,7 @@ pub fn parse_midi(file_path: &str) -> Vec<NoteEvent> {
             {
                 match message {
                     midly::MidiMessage::NoteOn { key, vel } => {
-                        let time_delta = (time_ms - last_time_ms) as f32;
+                        let time_delta = ((time_ms - last_time_ms) / 5.0).round() * 5.0;
                         last_time_ms = time_ms;
                         if vel.as_int() == 0 {
                             events.push(NoteEvent::new(time_delta, key.as_int(), false));
@@ -47,7 +47,7 @@ pub fn parse_midi(file_path: &str) -> Vec<NoteEvent> {
                         }
                     }
                     midly::MidiMessage::NoteOff { key, vel: _ } => {
-                        let time_delta = (time_ms - last_time_ms) as f32;
+                        let time_delta = ((time_ms - last_time_ms) / 5.0).round() * 5.0;
                         last_time_ms = time_ms;
                         events.push(NoteEvent::new(time_delta, key.as_int(), false));
                     }

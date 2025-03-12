@@ -258,6 +258,7 @@ impl Chord {
 
     pub fn reset(&mut self) {
         self.is_none = true;
+        self.chord_type = ChordType::None;
         self.notes.clear();
     }
 
@@ -294,10 +295,16 @@ impl Chord {
 
     pub fn get_events(&self) -> Vec<NoteEvent> {
         let mut events: Vec<NoteEvent> = Vec::new();
+        let mut added_delta: bool = false;
 
         for note in self.notes.iter() {
-            let event: NoteEvent =
-                NoteEvent::new(self.time_delta, note.get_key(), note.is_note_on());
+            let event: NoteEvent;
+            if !added_delta {
+                event = NoteEvent::new(self.time_delta, note.get_key(), note.is_note_on());
+                added_delta = true;
+            } else {
+                event = NoteEvent::new(0.0, note.get_key(), note.is_note_on());
+            }
             events.push(event);
         }
 

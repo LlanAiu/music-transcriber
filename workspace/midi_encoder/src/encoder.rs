@@ -20,7 +20,7 @@ pub fn encode(mut data: EncodingData) -> MIDIEncoding {
             break;
         }
 
-        let same_timestep: bool = event.get_time_delta() == 0.0;
+        let same_timestep: bool = time_delta == 0.0;
 
         if same_timestep {
             match chord.try_add(event.get_note(), time_delta) {
@@ -81,10 +81,33 @@ mod tests {
     fn encode_complex_midi() {
         let events: Vec<NoteEvent> = parse_midi("./tests/Double_Note_Test.mid");
         let data: EncodingData = EncodingData::new(events);
+
         let midi: MIDIEncoding = encode(data);
         for (i, vector) in midi.get_encoding().iter().enumerate() {
             println!("Chord {i}: {:?}", vector);
         }
+    }
+
+    #[test]
+    fn encode_test_data() {
+        let events: Vec<NoteEvent> = parse_midi("./tests/Data_Test.midi");
+
+        let mut total_time: f32 = 0.0;
+        for event in &events {
+            total_time += event.get_time_delta();
+        }
+        println!("Total time: {total_time}");
+        let data: EncodingData = EncodingData::new(events);
+
+        let midi: MIDIEncoding = encode(data);
+
+        let decoded_events: Vec<NoteEvent> = decode(midi);
+
+        total_time = 0.0;
+        for event in &decoded_events {
+            total_time += event.get_time_delta();
+        }
+        println!("Decoded total time: {total_time}");
     }
 
     #[test]
