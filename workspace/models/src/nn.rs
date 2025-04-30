@@ -6,12 +6,11 @@ use ndarray::{Array1, Array2, Axis};
 
 // internal
 mod save;
-use save::{from_save, save_to_file};
 use crate::networks::activation::Activation;
-use crate::networks::types::{Bias, Update, Weight};
-use crate::networks::configs::{ActivationConfig, WeightConfig, ParameterConfig};
 use crate::networks::computations::*;
-
+use crate::networks::configs::{ActivationConfig, ParameterConfig, WeightConfig};
+use crate::networks::types::{Bias, Update, Weight};
+use save::{from_save, save_to_file};
 
 const LEARNING_RATE: f32 = 0.001;
 
@@ -30,14 +29,14 @@ pub struct NN {
     biases: Vec<Bias>,
 
     hidden_activation: Activation,
-    end_activation: Activation
+    end_activation: Activation,
 }
 
 impl NN {
     pub fn new(
         params: &mut ParameterConfig,
         weights: WeightConfig,
-        activations: &mut ActivationConfig
+        activations: &mut ActivationConfig,
     ) -> NN {
         let layers: usize = params.layers();
         let input_size: usize = params.input_size();
@@ -59,16 +58,25 @@ impl NN {
 
             if i == 0 {
                 dim1 = input_size;
-                dim2 = *units_by_layer.get(i).expect("Failed to get layer dimension");
+                dim2 = *units_by_layer
+                    .get(i)
+                    .expect("Failed to get layer dimension");
             } else if i == layers {
-                dim1 = *units_by_layer.get(i - 1).expect("Failed to get layer dimension");
+                dim1 = *units_by_layer
+                    .get(i - 1)
+                    .expect("Failed to get layer dimension");
                 dim2 = output_size;
             } else {
-                dim1 = *units_by_layer.get(i - 1).expect("Failed to get layer dimension");
-                dim2 = *units_by_layer.get(i).expect("Failed to get layer dimension");
+                dim1 = *units_by_layer
+                    .get(i - 1)
+                    .expect("Failed to get layer dimension");
+                dim2 = *units_by_layer
+                    .get(i)
+                    .expect("Failed to get layer dimension");
             }
 
-            let hidden_weight: Weight = Weight::random((dim1, dim2), weights.min_weight(), weights.max_weight());
+            let hidden_weight: Weight =
+                Weight::random((dim1, dim2), weights.min_weight(), weights.max_weight());
             hidden_weights.push(hidden_weight);
 
             let bias: Bias = Bias::random(dim2, weights.min_bias(), weights.max_bias());
@@ -83,7 +91,7 @@ impl NN {
             hidden_weights,
             biases,
             hidden_activation: activations.get_hidden(),
-            end_activation: activations.get_end()
+            end_activation: activations.get_end(),
         }
     }
 
@@ -117,7 +125,7 @@ impl NN {
     pub fn predict_first_layer(&mut self, seq: Vec<Vec<f32>>) -> Vec<Vec<f32>> {
         let mut output_seq: Vec<Vec<f32>> = Vec::new();
 
-        for  arr in seq {
+        for arr in seq {
             let output: Vec<f32> = self.ff_single_layer(arr);
             output_seq.push(output);
         }
@@ -138,8 +146,12 @@ impl NN {
 
     fn feedforward(&mut self, v: Vec<f32>) -> (Vec<f32>, Vec<Array2<f32>>, Vec<Array2<f32>>) {
         if v.len() != self.input_size {
-            panic!("Invalid input size");
-        } 
+            panic!(
+                "Invalid input size of {}, expected {}",
+                v.len(),
+                self.input_size
+            );
+        }
 
         let mut arr: Array2<f32> = Array1::from_vec(v).insert_axis(Axis(0));
         let mut activations: Vec<Array2<f32>> = Vec::with_capacity(self.layers + 1);
@@ -156,7 +168,7 @@ impl NN {
             arr = arr + bias.get_row_vector();
 
             raw_nodes.push(arr.clone());
-            
+
             if i < self.layers {
                 arr.mapv_inplace(|x| self.hidden_activation.of(x));
                 activations.push(arr.clone());
@@ -166,7 +178,7 @@ impl NN {
         arr.mapv_inplace(|x| self.end_activation.of(x));
 
         let output: Vec<f32> = arr.remove_axis(Axis(0)).to_vec();
-        
+
         /*
         Quick note before I get tripped up again:
         - output - last output layer only
@@ -183,13 +195,16 @@ impl NN {
 
         let mut arr: Array2<f32> = Array1::from_vec(v).insert_axis(Axis(0));
 
-        let hidden_weight: &Weight = self.hidden_weights.get(0).expect("Failed to get hidden weight");
+        let hidden_weight: &Weight = self
+            .hidden_weights
+            .get(0)
+            .expect("Failed to get hidden weight");
         arr = arr.dot(&hidden_weight.get_weight_matrix());
 
         let bias: &Bias = self.biases.get(0).expect("Failed to get bias");
         arr = arr + bias.get_row_vector();
 
-        arr.mapv_inplace(|x | self.hidden_activation.of(x));
+        arr.mapv_inplace(|x| self.hidden_activation.of(x));
 
         arr.remove_axis(Axis(0)).to_vec()
     }
@@ -197,7 +212,7 @@ impl NN {
     fn ff_from_first(&mut self, v: Vec<f32>) -> Vec<f32> {
         if v.len() != self.input_size {
             panic!("Invalid input size");
-        } 
+        }
 
         let mut arr: Array2<f32> = Array1::from_vec(v).insert_axis(Axis(0));
 
@@ -207,7 +222,7 @@ impl NN {
 
             let bias: &Bias = self.biases.get(i).expect("Failed to get bias");
             arr = arr + bias.get_row_vector();
-            
+
             if i < self.layers {
                 arr.mapv_inplace(|x| self.hidden_activation.of(x));
             }
@@ -219,7 +234,12 @@ impl NN {
     }
 
     pub fn predict_and_update(&mut self, seq: Vec<Vec<f32>>, ans: &Vec<Vec<f32>>, batch: usize) {
-        let mut update: Update = Update::new(self.input_size, self.output_size, &self.units_by_layer, batch);
+        let mut update: Update = Update::new(
+            self.input_size,
+            self.output_size,
+            &self.units_by_layer,
+            batch,
+        );
 
         for (i, arr) in seq.into_iter().enumerate() {
             let (output, activations, raw) = self.feedforward(arr);
@@ -232,18 +252,19 @@ impl NN {
         }
     }
 
-    fn add_update(&self,
+    fn add_update(
+        &self,
         grad: &mut Update,
-        output: Vec<f32>, 
-        answer: &Vec<f32>, 
+        output: Vec<f32>,
+        answer: &Vec<f32>,
         act: &Vec<Array2<f32>>,
-        raw: &Vec<Array2<f32>>
+        raw: &Vec<Array2<f32>>,
     ) {
         let mut hidden_grads: Vec<Array2<f32>> = Vec::new();
         let mut bias_grads: Vec<Array1<f32>> = Vec::new();
 
-        let raw_outputs: &Array2<f32> = raw.get(self.layers + 1)
-            .expect("Failed to get raw outputs");
+        let raw_outputs: &Array2<f32> =
+            raw.get(self.layers + 1).expect("Failed to get raw outputs");
         let mut prev_grad: Array1<f32> = self.get_output_grad(&output, answer, raw_outputs);
 
         for i in (0..=self.layers).rev() {
@@ -262,11 +283,21 @@ impl NN {
         grad.combine_update(hidden_grads, bias_grads);
     }
 
-    fn get_output_grad(&self, output: &Vec<f32>, answer: &Vec<f32>, raw: &Array2<f32>) -> Array1<f32> {
+    fn get_output_grad(
+        &self,
+        output: &Vec<f32>,
+        answer: &Vec<f32>,
+        raw: &Array2<f32>,
+    ) -> Array1<f32> {
         compute_output_grad(output, answer, raw, &self.hidden_activation)
     }
 
-    fn get_hidden_grad(&self, layer: usize, prev_grad: &Array1<f32>, input_act: &Array2<f32>) -> Array2<f32> {
+    fn get_hidden_grad(
+        &self,
+        layer: usize,
+        prev_grad: &Array1<f32>,
+        input_act: &Array2<f32>,
+    ) -> Array2<f32> {
         let dim: (usize, usize) = self.hidden_weights[layer].dim();
 
         compute_hidden_grad(dim, prev_grad, input_act)
@@ -280,7 +311,7 @@ impl NN {
             expected_dim = self.units_by_layer[layer];
         }
 
-        if prev_grad.dim() != expected_dim{
+        if prev_grad.dim() != expected_dim {
             panic!("Mismatched bias/gradient vector dimensions!");
         }
 
@@ -288,17 +319,16 @@ impl NN {
     }
 
     fn get_backpropogated_grad(
-        &self, 
-        layer: usize, 
-        prev_grad: Array1<f32>, 
+        &self,
+        layer: usize,
+        prev_grad: Array1<f32>,
         raw_input: &Array2<f32>,
     ) -> Array1<f32> {
-        
         compute_backpropogated_grad(
             &self.hidden_weights[layer],
-            &self.hidden_activation, 
-            prev_grad, 
-            raw_input
+            &self.hidden_activation,
+            prev_grad,
+            raw_input,
         )
     }
 
@@ -309,7 +339,9 @@ impl NN {
         let bias_updates: &Vec<Array1<f32>> = grad.get_biases_update();
 
         for i in 0..=self.layers {
-            let hidden_update: &Array2<f32> = hidden_updates.get(i).expect("Failed to get hidden weight update");
+            let hidden_update: &Array2<f32> = hidden_updates
+                .get(i)
+                .expect("Failed to get hidden weight update");
             self.hidden_weights[i].update(hidden_update, alpha);
 
             let bias_update: &Array1<f32> = bias_updates.get(i).expect("Failed to get bias update");
@@ -331,30 +363,26 @@ mod tests {
         init_registry();
         let mut params: ParameterConfig = ParameterConfig::new(2, 2, 2, vec![3, 3]);
         let weights: WeightConfig = WeightConfig::new(0.999, 1.0, -0.01, 0.01);
-        let mut activations: ActivationConfig = ActivationConfig::new(Activation::relu(), Activation::none());
+        let mut activations: ActivationConfig =
+            ActivationConfig::new(Activation::relu(), Activation::none());
         let mut nn: NN = NN::new(&mut params, weights, &mut activations);
 
-        let mut update: Update = Update::new(params.input_size(), params.output_size(), &nn.units_by_layer, 4);
+        let mut update: Update = Update::new(
+            params.input_size(),
+            params.output_size(),
+            &nn.units_by_layer,
+            4,
+        );
 
         let sample: Vec<f32> = vec![0.0, 0.0];
-        
-        let (
-            output, 
-            activations, 
-            raw_nodes
-        ) = nn.feedforward(sample);
+
+        let (output, activations, raw_nodes) = nn.feedforward(sample);
 
         println!("Finished feedforward prediction");
 
         let answer: Vec<f32> = vec![1.0, 1.0];
 
-        nn.add_update(
-            &mut update, 
-            output, 
-            &answer, 
-            &activations,
-            &raw_nodes
-        );
+        nn.add_update(&mut update, output, &answer, &activations, &raw_nodes);
 
         println!("{:?}", update);
     }

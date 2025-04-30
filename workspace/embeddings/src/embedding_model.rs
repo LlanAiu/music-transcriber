@@ -5,14 +5,14 @@ use std::cmp;
 
 // internal
 use super::types::Embedding;
-use midi_encoder::types::MIDIEncoding;
+use midi_encoder::types::{MIDIEncoding, ENCODING_LENGTH};
 use models::networks::activation::Activation;
 use models::networks::configs::{ActivationConfig, ParameterConfig, WeightConfig};
 use models::NN;
 
 pub struct EmbeddingModel {
     dim: usize,
-    window: usize,
+    window_radius: usize,
     batch: usize,
     nn: NN,
 }
@@ -21,7 +21,8 @@ impl EmbeddingModel {
     pub fn new(dim: usize, window: usize, batch: usize) -> EmbeddingModel {
         let file_path: String = format!("./tests/weights_d{dim}.txt");
         let nn: NN = NN::from_save(&file_path).unwrap_or_else(|_err| {
-            let mut params: ParameterConfig = ParameterConfig::new(1, 176, 176, vec![dim]);
+            let mut params: ParameterConfig =
+                ParameterConfig::new(1, ENCODING_LENGTH, ENCODING_LENGTH, vec![dim]);
             let weights: WeightConfig = WeightConfig::new(0.03, 0.07, 0.000, 0.0001);
             let mut activations: ActivationConfig =
                 ActivationConfig::new(Activation::relu(), Activation::sigmoid());
@@ -30,7 +31,7 @@ impl EmbeddingModel {
 
         EmbeddingModel {
             dim,
-            window,
+            window_radius: window,
             batch,
             nn,
         }
@@ -42,7 +43,7 @@ impl EmbeddingModel {
         self.nn.save_to_file(&file_path);
     }
 
-    fn learn_embeddings(&mut self, encoding: MIDIEncoding) {
+    pub fn learn_embeddings(&mut self, encoding: MIDIEncoding) {
         let encoded_vecs: Vec<Vec<f32>> = encoding
             .get_encoding()
             .iter()
@@ -52,8 +53,12 @@ impl EmbeddingModel {
         let mut averaged_vecs: Vec<Vec<f32>> = Vec::new();
 
         for i in 0..encoded_vecs.len() {
-            let start = if i >= self.window { i - self.window } else { 0 };
-            let end = cmp::min(i + self.window, encoded_vecs.len() - 1);
+            let start = if i >= self.window_radius {
+                i - self.window_radius
+            } else {
+                0
+            };
+            let end = cmp::min(i + self.window_radius, encoded_vecs.len() - 1);
             let window = &encoded_vecs[start..=end];
 
             let sum_vec = self.get_window_average(window);
@@ -77,26 +82,25 @@ impl EmbeddingModel {
         Embedding::new(output_vecs)
     }
 
-    //will prob need to change this to remove timestep.
     pub fn get_encoding(&mut self, mut embedding: Embedding) -> MIDIEncoding {
         let embedding_vecs: Vec<Vec<f32>> = embedding.get_embedding();
 
         let output_vecs: Vec<Vec<f32>> = self.nn.first_layer_input(embedding_vecs);
 
-        MIDIEncoding::from_vector(output_vecs, 0.8)
+        MIDIEncoding::from_vector(output_vecs, 0.5)
     }
 
     fn get_window_average(&self, slice: &[Vec<f32>]) -> Vec<f32> {
-        if slice.len() != (2 * self.window + 1) || slice.len() % 2 == 0 {
-            panic!("Invalid encoding window!");
+        if slice.is_empty() {
+            panic!("Empty window!");
         }
 
         let mut sum_vec: Vec<f32> = vec![0.0; slice[0].len()];
-        let skip_i: usize = slice.len() / 2;
-        let num_vecs: usize = slice.len() - 1;
+        let center_index: usize = slice.len() / 2;
+        let num_vecs: usize = 2 * self.window_radius;
 
         for (i, vec) in slice.iter().enumerate() {
-            if i == skip_i {
+            if i == center_index {
                 continue;
             }
 
