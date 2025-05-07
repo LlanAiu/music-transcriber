@@ -21,6 +21,7 @@ impl EmbeddingModel {
     pub fn new(dim: usize, window: usize, batch: usize) -> EmbeddingModel {
         let file_path: String = format!("./tests/weights_d{dim}.txt");
         let nn: NN = NN::from_save(&file_path).unwrap_or_else(|_err| {
+            println!("No save found -- generating new model");
             let mut params: ParameterConfig =
                 ParameterConfig::new(1, ENCODING_LENGTH, ENCODING_LENGTH, vec![dim]);
             let weights: WeightConfig = WeightConfig::new(0.03, 0.07, 0.000, 0.0001);
@@ -43,7 +44,7 @@ impl EmbeddingModel {
         self.nn.save_to_file(&file_path);
     }
 
-    pub fn learn_embeddings(&mut self, encoding: MIDIEncoding) {
+    pub fn learn_embeddings(&mut self, encoding: &MIDIEncoding) {
         let encoded_vecs: Vec<Vec<f32>> = encoding
             .get_encoding()
             .iter()
@@ -70,7 +71,7 @@ impl EmbeddingModel {
             .predict_and_update(averaged_vecs, &encoded_vecs, self.batch);
     }
 
-    pub fn get_embedding(&mut self, encoding: MIDIEncoding) -> Embedding {
+    pub fn get_embedding(&mut self, encoding: &MIDIEncoding) -> Embedding {
         let encoded_vecs: Vec<Vec<f32>> = encoding
             .get_encoding()
             .iter()

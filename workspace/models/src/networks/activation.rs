@@ -1,63 +1,64 @@
 // builtin
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::{OnceLock, RwLock};
-// use core::cell::OnceCell;
-use std::collections::HashMap;
 
 // external
 
 // internal
 
-
 pub fn init_registry() {
     if REGISTRY_INSTANCE.get().is_none() {
         let activation_registry: ActivationRegistry = ActivationRegistry::init();
 
-        REGISTRY_INSTANCE.set(RwLock::new(activation_registry)).unwrap();
-    
+        REGISTRY_INSTANCE
+            .set(RwLock::new(activation_registry))
+            .unwrap();
+
         ActivationRegistry::register("none", Box::new(None));
         ActivationRegistry::register("sigmoid", Box::new(Sigmoid));
         ActivationRegistry::register("relu", Box::new(ReLU));
     }
 }
 
-
 #[derive(Debug)]
 pub struct ActivationRegistry {
-    registry: HashMap<String, Box<dyn ActivationFunction>>
+    registry: HashMap<String, Box<dyn ActivationFunction>>,
 }
 
 static REGISTRY_INSTANCE: OnceLock<RwLock<ActivationRegistry>> = OnceLock::new();
 
 impl ActivationRegistry {
-
     fn init() -> ActivationRegistry {
         let hmap: HashMap<String, Box<dyn ActivationFunction>> = HashMap::new();
 
-        ActivationRegistry {
-            registry: hmap
-        }
+        ActivationRegistry { registry: hmap }
     }
 
     pub fn get(name: &str) -> Box<dyn ActivationFunction> {
-        let guard = REGISTRY_INSTANCE.get()
+        let guard = REGISTRY_INSTANCE
+            .get()
             .expect("Tried to use registry prior to initialization")
-            .read().expect("Failed to acquire read lock on registry");
+            .read()
+            .expect("Failed to acquire read lock on registry");
 
-        guard.registry.get(name).map(|f| {
-            f.copy()
-        }).expect("Failed to fetch activation function from registry")
+        guard
+            .registry
+            .get(name)
+            .map(|f| f.copy())
+            .expect("Failed to fetch activation function from registry")
     }
 
     pub fn register(name: &str, func: Box<dyn ActivationFunction>) {
-        let mut guard = REGISTRY_INSTANCE.get()
+        let mut guard = REGISTRY_INSTANCE
+            .get()
             .expect("Tried to use registry prior to initialization")
-            .write().expect("Failed to acquire write lock on registry");
+            .write()
+            .expect("Failed to acquire write lock on registry");
 
         guard.registry.insert(name.to_string(), func);
     }
 }
-
 
 pub trait ActivationFunction: Send + Sync + Debug {
     fn of(&self, x: f32) -> f32;
@@ -65,8 +66,6 @@ pub trait ActivationFunction: Send + Sync + Debug {
     fn name(&self) -> String;
     fn copy(&self) -> Box<dyn ActivationFunction>;
 }
-
-
 
 pub struct Activation {
     function: Box<dyn ActivationFunction>,
@@ -76,10 +75,10 @@ pub struct Activation {
 impl Activation {
     pub fn sigmoid() -> Activation {
         let function: Box<dyn ActivationFunction> = Box::new(Sigmoid);
-        
+
         Activation {
             function,
-            name: "sigmoid".to_string()
+            name: "sigmoid".to_string(),
         }
     }
 
@@ -88,7 +87,7 @@ impl Activation {
 
         Activation {
             function,
-            name: "relu".to_string()
+            name: "relu".to_string(),
         }
     }
 
@@ -99,7 +98,7 @@ impl Activation {
     pub fn from_function(func: Box<dyn ActivationFunction>) -> Activation {
         Activation {
             name: func.name(),
-            function: func
+            function: func,
         }
     }
 
@@ -108,7 +107,7 @@ impl Activation {
 
         Activation {
             function,
-            name: s.to_string()
+            name: s.to_string(),
         }
     }
 

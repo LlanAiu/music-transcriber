@@ -210,8 +210,13 @@ impl NN {
     }
 
     fn ff_from_first(&mut self, v: Vec<f32>) -> Vec<f32> {
-        if v.len() != self.input_size {
-            panic!("Invalid input size");
+        let expected_input_size: usize = *(self.units_by_layer.get(0).unwrap_or(&0));
+        if v.len() != expected_input_size {
+            panic!(
+                "Invalid input size! Expected {} but got {}",
+                expected_input_size,
+                v.len()
+            );
         }
 
         let mut arr: Array2<f32> = Array1::from_vec(v).insert_axis(Axis(0));
